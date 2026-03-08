@@ -53,6 +53,40 @@ flowchart TD
 - `POST /internal/executors/{id}/result` saves the result and marks the executor as `TERMINATED`.
 - There is also basic scheduler and pool logic in the code already, but it is still an early version.
 
+## Example curl commands
+
+Submit a job:
+
+```sh
+curl -X POST https://executor.def4alt.com/jobs \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "script": "echo hello world!",
+    "requiredResources": {
+      "cpus": 1,
+      "memory": 128
+    }
+  }'
+```
+
+Get one job by id:
+
+```sh
+curl https://executor.def4alt.com/jobs/<job-id>
+```
+
+Check service health:
+
+```sh
+curl https://executor.def4alt.com/actuator/health
+```
+
+Check the small admin summary:
+
+```sh
+curl https://executor.def4alt.com/admin/summary
+```
+
 ## Local development
 
 Run tests:

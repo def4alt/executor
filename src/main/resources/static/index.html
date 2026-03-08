@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>executor terminal</title>
+    <style>
+      :root {
+        --bg: #303446;
+        --bg-soft: #3b4261;
+        --panel: #232634;
+        --border: #51576d;
+        --text: #c6d0f5;
+        --muted: #99a1c6;
+        --green: #a6d189;
+        --yellow: #e5c890;
+        --blue: #8caaee;
+        --red: #e78284;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background:
+          radial-gradient(circle at top, rgba(140, 170, 238, 0.16), transparent 28%),
+          linear-gradient(180deg, #232634 0%, #1e2030 100%);
+        color: var(--text);
+        font-family: "SFMono-Regular", "JetBrains Mono", "Menlo", "Monaco", monospace;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+      }
+
+      .shell {
+        width: min(980px, 100%);
+        border: 1px solid rgba(198, 208, 245, 0.15);
+        border-radius: 18px;
+        overflow: hidden;
+        background: rgba(35, 38, 52, 0.94);
+        box-shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
+        backdrop-filter: blur(18px);
+      }
+
+      .titlebar {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 14px 18px;
+        background: rgba(81, 87, 109, 0.22);
+        border-bottom: 1px solid rgba(198, 208, 245, 0.1);
+      }
+
+      .lights {
+        display: flex;
+        gap: 8px;
+      }
+
+      .light {
+        width: 11px;
+        height: 11px;
+        border-radius: 999px;
+      }
+
+      .light.red { background: var(--red); }
+      .light.yellow { background: var(--yellow); }
+      .light.green { background: var(--green); }
+
+      .tab {
+        padding: 8px 12px;
+        border: 1px solid rgba(198, 208, 245, 0.1);
+        border-radius: 10px;
+        background: rgba(35, 38, 52, 0.72);
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      .tab strong {
+        color: var(--text);
+      }
+
+      .screen {
+        padding: 26px;
+        display: grid;
+        gap: 22px;
+      }
+
+      .line {
+        color: var(--green);
+        font-size: 14px;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(28px, 5vw, 52px);
+        line-height: 1.05;
+      }
+
+      p {
+        margin: 0;
+        color: var(--muted);
+        max-width: 70ch;
+        line-height: 1.6;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+        gap: 14px;
+      }
+
+      .card {
+        border: 1px solid rgba(198, 208, 245, 0.1);
+        border-radius: 14px;
+        padding: 16px;
+        background: rgba(59, 66, 97, 0.2);
+      }
+
+      .label {
+        color: var(--blue);
+        margin-bottom: 10px;
+        font-size: 13px;
+      }
+
+      code {
+        color: var(--text);
+        font-family: inherit;
+        word-break: break-word;
+      }
+
+      pre {
+        margin: 0;
+        padding: 16px;
+        border-radius: 14px;
+        overflow: auto;
+        border: 1px solid rgba(198, 208, 245, 0.1);
+        background: rgba(0, 0, 0, 0.22);
+        color: var(--text);
+        line-height: 1.55;
+      }
+
+      .muted {
+        color: var(--muted);
+      }
+
+      .prompt {
+        color: var(--green);
+      }
+
+      .cursor {
+        display: inline-block;
+        width: 10px;
+        height: 1.1em;
+        background: var(--text);
+        vertical-align: -2px;
+        animation: blink 1s steps(1) infinite;
+      }
+
+      @keyframes blink {
+        50% {
+          opacity: 0;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <div class="titlebar">
+        <div class="lights">
+          <span class="light red"></span>
+          <span class="light yellow"></span>
+          <span class="light green"></span>
+        </div>
+        <div class="tab"><strong>executor terminal</strong> <span class="muted">Ghostty-inspired</span></div>
+      </div>
+
+      <section class="screen">
+        <div class="line">$ executor status --live</div>
+
+        <div>
+          <h1>Run one job at a time, like a small terminal control plane.</h1>
+          <p>
+            This page is intentionally styled like a terminal window inspired by Ghostty. The backend is still the real Spring Boot service:
+            jobs go into Postgres, the scheduler matches a small executor flavor, and short-lived worker pods run the command and report the result.
+          </p>
+        </div>
+
+        <div class="grid">
+          <div class="card">
+            <div class="label">Health</div>
+            <code>GET /actuator/health</code>
+          </div>
+          <div class="card">
+            <div class="label">Job Submit</div>
+            <code>POST /jobs</code>
+          </div>
+          <div class="card">
+            <div class="label">Admin Summary</div>
+            <code>GET /admin/summary</code>
+          </div>
+        </div>
+
+        <pre><span class="prompt">$</span> curl -X POST https://executor.def4alt.com/jobs \
+  -H 'content-type: application/json' \
+  -d '{"script":"echo hello world!","requiredResources":{"cpus":1,"memory":128}}'
+
+<span class="muted"># the control plane stores the job, launches a worker pod if needed, and records the result back in Postgres</span>
+<span class="cursor"></span></pre>
+      </section>
+    </main>
+  </body>
+</html>
