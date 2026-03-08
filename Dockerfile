@@ -8,6 +8,6 @@ RUN useradd --system --create-home --uid 10001 executor
 WORKDIR /app
 COPY --from=build /workspace/build/libs/*.jar app.jar
 RUN chown -R executor:executor /app
-USER executor
+USER 10001
 EXPOSE 8080
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]
