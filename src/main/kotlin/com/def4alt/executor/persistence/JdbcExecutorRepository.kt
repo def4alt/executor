@@ -172,6 +172,28 @@ class JdbcExecutorRepository(
         return requireNotNull(findById(executorId))
     }
 
+    override fun findByStatuses(statuses: Set<ExecutorStatus>): List<Executor> {
+        if (statuses.isEmpty()) {
+            return emptyList()
+        }
+
+        val placeholders = statuses.mapIndexed { index, _ -> ":status$index" }
+        var statement = jdbcClient.sql(
+            """
+            select id, pod_name, namespace, flavor, status, job_id, created_at,
+                   ready_at, last_heartbeat_at, lease_expires_at
+            from executors
+            where status in (${placeholders.joinToString(", ")})
+            """.trimIndent()
+        )
+
+        statuses.toList().forEachIndexed { index, status ->
+            statement = statement.param("status$index", status.name)
+        }
+
+        return statement.query { rs, _ -> rs.toExecutor() }.list()
+    }
+
     private fun ResultSet.toExecutor(): Executor {
         return Executor(
             id = getString("id"),

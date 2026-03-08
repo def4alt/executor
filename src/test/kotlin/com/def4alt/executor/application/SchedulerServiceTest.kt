@@ -143,6 +143,13 @@ private class InMemorySchedulingJobRepository(
         return jobs.firstOrNull { it.executorId == executorId && it.status == JobStatus.IN_PROGRESS }
     }
 
+    override fun markFailed(jobId: String, stderr: String, finishedAt: Instant): Job {
+        val index = jobs.indexOfFirst { it.id == jobId }
+        val updated = jobs[index].copy(status = JobStatus.FAILED, stderr = stderr, finishedAt = finishedAt)
+        jobs[index] = updated
+        return updated
+    }
+
     override fun markInProgress(jobId: String, executorId: String, startedAt: Instant): Job {
         val index = jobs.indexOfFirst { it.id == jobId }
         val updated = jobs[index].copy(status = JobStatus.IN_PROGRESS, executorId = executorId, startedAt = startedAt)
@@ -194,6 +201,10 @@ private class InMemoryExecutorRepository(
         val updated = executors[index].copy(status = ExecutorStatus.TERMINATED)
         executors[index] = updated
         return updated
+    }
+
+    override fun findByStatuses(statuses: Set<ExecutorStatus>): List<Executor> {
+        return executors.filter { it.status in statuses }
     }
 }
 

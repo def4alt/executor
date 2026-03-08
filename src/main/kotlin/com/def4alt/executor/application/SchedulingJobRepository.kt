@@ -8,5 +8,7 @@ interface SchedulingJobRepository {
 
     fun findAssignedJob(executorId: String): Job?
 
+    fun markFailed(jobId: String, stderr: String, finishedAt: Instant): Job
+
     fun markInProgress(jobId: String, executorId: String, startedAt: Instant): Job
 }

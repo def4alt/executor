@@ -18,4 +18,6 @@ interface ExecutorRepository {
     fun attachJob(executorId: String, jobId: String): Executor
 
     fun markTerminated(executorId: String): Executor
+
+    fun findByStatuses(statuses: Set<ExecutorStatus>): List<Executor>
 }

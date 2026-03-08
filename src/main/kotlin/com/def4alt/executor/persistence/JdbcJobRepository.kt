@@ -143,6 +143,25 @@ class JdbcJobRepository(
         return requireNotNull(findById(jobId))
     }
 
+    override fun markFailed(jobId: String, stderr: String, finishedAt: Instant): Job {
+        jdbcClient.sql(
+            """
+            update jobs
+            set status = :status,
+                stderr = :stderr,
+                finished_at = :finishedAt
+            where id = :id
+            """.trimIndent()
+        )
+            .param("status", JobStatus.FAILED.name)
+            .param("stderr", stderr)
+            .param("finishedAt", finishedAt.toSqlTimestamp())
+            .param("id", jobId)
+            .update()
+
+        return requireNotNull(findById(jobId))
+    }
+
     fun markFinished(jobId: String, stdout: String, stderr: String, exitCode: Int, finishedAt: Instant): Job {
         jdbcClient.sql(
             """
@@ -164,6 +183,19 @@ class JdbcJobRepository(
             .update()
 
         return requireNotNull(findById(jobId))
+    }
+
+    override fun countByStatus(status: JobStatus): Int {
+        return jdbcClient.sql(
+            """
+            select count(*)
+            from jobs
+            where status = :status
+            """.trimIndent()
+        )
+            .param("status", status.name)
+            .query(Int::class.java)
+            .single()
     }
 
     private fun ResultSet.toJob(): Job {
