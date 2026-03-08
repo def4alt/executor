@@ -1,11 +1,9 @@
 package com.def4alt.executor.application
 
 import com.def4alt.executor.domain.ExecutorStatus
-import org.springframework.stereotype.Service
 import java.time.Duration
 import java.time.Instant
 
-@Service
 class SchedulerService(
     private val jobRepository: SchedulingJobRepository,
     private val executorRepository: ExecutorRepository,

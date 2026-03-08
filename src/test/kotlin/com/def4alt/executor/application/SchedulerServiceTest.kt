@@ -132,6 +132,7 @@ class SchedulerServiceTest {
         assertNull(assignment)
         assertTrue(launcher.launchedFlavors.isEmpty())
     }
+
 }
 
 private class InMemorySchedulingJobRepository(
