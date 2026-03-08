@@ -1,0 +1,25 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:executor;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE
+    username: sa
+    password:
+  flyway:
+    enabled: true
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
+
+executor:
+  flavors:
+    - name: small-linux
+      cpu-cores: 1
+      memory-mb: 2048
+      gpu-count: 0
+    - name: medium-linux
+      cpu-cores: 2
+      memory-mb: 4096
+      gpu-count: 0
+    - name: gpu-linux
+      cpu-cores: 4
+      memory-mb: 16384
+      gpu-count: 1
