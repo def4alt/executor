@@ -1,0 +1,27 @@
+spring:
+  application:
+    name: executor
+  datasource:
+    url: jdbc:postgresql://${EXECUTOR_DB_HOST:localhost}:${EXECUTOR_DB_PORT:5432}/${EXECUTOR_DB_NAME:executor}
+    username: ${SPRING_DATASOURCE_USERNAME:executor}
+    password: ${SPRING_DATASOURCE_PASSWORD:executor}
+  flyway:
+    enabled: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+
+executor:
+  flavors:
+    - name: small-linux
+      cpus: 1
+      memory: 512
+    - name: medium-linux
+      cpus: 1
+      memory: 1024
+    - name: large-linux
+      cpus: 2
+      memory: 2048

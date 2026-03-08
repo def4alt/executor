@@ -27,7 +27,7 @@ class JobControllerTest {
     fun `post jobs stores a queued job and returns the created record`() {
         val request = CreateJobRequest(
             script = "echo hello",
-            requiredResources = ResourceSpecRequest(cpuCores = 1, memoryMb = 512, gpuCount = 0),
+            requiredResources = ResourceSpecRequest(cpus = 1, memory = 512),
         )
 
         mockMvc.perform(
@@ -45,7 +45,7 @@ class JobControllerTest {
     fun `get jobs by id returns the previously created job`() {
         val request = CreateJobRequest(
             script = "echo status",
-            requiredResources = ResourceSpecRequest(cpuCores = 1, memoryMb = 512, gpuCount = 0),
+            requiredResources = ResourceSpecRequest(cpus = 1, memory = 512),
         )
 
         val body = mockMvc.perform(

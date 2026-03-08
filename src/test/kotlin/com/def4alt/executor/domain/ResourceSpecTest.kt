@@ -7,18 +7,17 @@ import kotlin.test.assertTrue
 class ResourceSpecTest {
     @Test
     fun `fits returns true when executor satisfies every resource requirement`() {
-        val executor = ResourceSpec(cpuCores = 2, memoryMb = 4096, gpuCount = 0)
-        val job = ResourceSpec(cpuCores = 1, memoryMb = 2048, gpuCount = 0)
+        val executor = ResourceSpec(cpus = 2, memory = 4096)
+        val job = ResourceSpec(cpus = 1, memory = 2048)
 
         assertTrue(executor.fits(job))
     }
 
     @Test
     fun `fits returns false when any required resource exceeds executor capacity`() {
-        val executor = ResourceSpec(cpuCores = 2, memoryMb = 4096, gpuCount = 0)
+        val executor = ResourceSpec(cpus = 2, memory = 4096)
 
-        assertFalse(executor.fits(ResourceSpec(cpuCores = 3, memoryMb = 2048, gpuCount = 0)))
-        assertFalse(executor.fits(ResourceSpec(cpuCores = 2, memoryMb = 8192, gpuCount = 0)))
-        assertFalse(executor.fits(ResourceSpec(cpuCores = 2, memoryMb = 4096, gpuCount = 1)))
+        assertFalse(executor.fits(ResourceSpec(cpus = 3, memory = 2048)))
+        assertFalse(executor.fits(ResourceSpec(cpus = 2, memory = 8192)))
     }
 }

@@ -12,14 +12,11 @@ spring:
 executor:
   flavors:
     - name: small-linux
-      cpu-cores: 1
-      memory-mb: 2048
-      gpu-count: 0
+      cpus: 1
+      memory: 512
     - name: medium-linux
-      cpu-cores: 2
-      memory-mb: 4096
-      gpu-count: 0
-    - name: gpu-linux
-      cpu-cores: 4
-      memory-mb: 16384
-      gpu-count: 1
+      cpus: 1
+      memory: 1024
+    - name: large-linux
+      cpus: 2
+      memory: 2048

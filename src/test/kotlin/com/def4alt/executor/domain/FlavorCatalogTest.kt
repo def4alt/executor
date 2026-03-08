@@ -7,22 +7,22 @@ import kotlin.test.assertEquals
 class FlavorCatalogTest {
     private val catalog = FlavorCatalog(
         listOf(
-            ExecutorFlavor("small-linux", ResourceSpec(cpuCores = 1, memoryMb = 2048, gpuCount = 0)),
-            ExecutorFlavor("medium-linux", ResourceSpec(cpuCores = 2, memoryMb = 4096, gpuCount = 0)),
-            ExecutorFlavor("gpu-linux", ResourceSpec(cpuCores = 4, memoryMb = 16384, gpuCount = 1)),
+            ExecutorFlavor("small-linux", ResourceSpec(cpus = 1, memory = 512)),
+            ExecutorFlavor("medium-linux", ResourceSpec(cpus = 1, memory = 1024)),
+            ExecutorFlavor("large-linux", ResourceSpec(cpus = 2, memory = 2048)),
         )
     )
 
     @Test
     fun `findSmallestMatching chooses the smallest flavor that fits`() {
-        val flavor = catalog.findSmallestMatching(ResourceSpec(cpuCores = 2, memoryMb = 3072, gpuCount = 0))
+        val flavor = catalog.findSmallestMatching(ResourceSpec(cpus = 1, memory = 900))
 
         assertEquals("medium-linux", flavor.name)
     }
 
     @Test
-    fun `findSmallestMatching prefers non-gpu flavor when gpu is not needed`() {
-        val flavor = catalog.findSmallestMatching(ResourceSpec(cpuCores = 1, memoryMb = 1024, gpuCount = 0))
+    fun `findSmallestMatching picks the smallest sufficient flavor`() {
+        val flavor = catalog.findSmallestMatching(ResourceSpec(cpus = 1, memory = 256))
 
         assertEquals("small-linux", flavor.name)
     }
@@ -30,7 +30,7 @@ class FlavorCatalogTest {
     @Test
     fun `findSmallestMatching rejects requests that no flavor can satisfy`() {
         assertThrows<NoSuchElementException> {
-            catalog.findSmallestMatching(ResourceSpec(cpuCores = 8, memoryMb = 32768, gpuCount = 0))
+            catalog.findSmallestMatching(ResourceSpec(cpus = 4, memory = 4096))
         }
     }
 }
