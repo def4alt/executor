@@ -8,7 +8,9 @@ import com.def4alt.executor.domain.ResourceSpec
 import org.junit.jupiter.api.Test
 import java.time.Instant
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class SchedulerServiceTest {
     @Test
@@ -38,7 +40,7 @@ class SchedulerServiceTest {
                 )
             )
         )
-        val service = SchedulerService(jobRepository, executorRepository)
+        val service = SchedulerService(jobRepository, executorRepository, NoopExecutorLauncher())
 
         val assignment = service.scheduleNextQueuedJob(Instant.parse("2026-03-08T10:01:00Z"))
 
@@ -65,12 +67,70 @@ class SchedulerServiceTest {
             )
         )
         val executorRepository = InMemoryExecutorRepository(mutableListOf())
-        val service = SchedulerService(jobRepository, executorRepository)
+        val service = SchedulerService(jobRepository, executorRepository, NoopExecutorLauncher())
 
         val assignment = service.scheduleNextQueuedJob(Instant.parse("2026-03-08T10:01:00Z"))
 
         assertNull(assignment)
         assertEquals(JobStatus.QUEUED, jobRepository.jobs.single().status)
+    }
+
+    @Test
+    fun `scheduleNextQueuedJob launches a new executor when queue exists but no active capacity exists`() {
+        val jobRepository = InMemorySchedulingJobRepository(
+            mutableListOf(
+                Job(
+                    id = "job-1",
+                    script = "echo wait",
+                    status = JobStatus.QUEUED,
+                    requiredResources = ResourceSpec(cpus = 1, memory = 512),
+                    flavor = "small-linux",
+                    createdAt = Instant.parse("2026-03-08T10:00:00Z"),
+                )
+            )
+        )
+        val launcher = RecordingExecutorLauncher()
+        val service = SchedulerService(jobRepository, InMemoryExecutorRepository(mutableListOf()), launcher)
+
+        val assignment = service.scheduleNextQueuedJob(Instant.parse("2026-03-08T10:01:00Z"))
+
+        assertNull(assignment)
+        assertEquals(listOf("small-linux"), launcher.launchedFlavors)
+    }
+
+    @Test
+    fun `scheduleNextQueuedJob does not launch duplicate executor when one is already starting`() {
+        val jobRepository = InMemorySchedulingJobRepository(
+            mutableListOf(
+                Job(
+                    id = "job-1",
+                    script = "echo wait",
+                    status = JobStatus.QUEUED,
+                    requiredResources = ResourceSpec(cpus = 1, memory = 512),
+                    flavor = "small-linux",
+                    createdAt = Instant.parse("2026-03-08T10:00:00Z"),
+                )
+            )
+        )
+        val executorRepository = InMemoryExecutorRepository(
+            mutableListOf(
+                Executor(
+                    id = "exec-1",
+                    podName = "executor-small-1",
+                    namespace = "executor",
+                    flavor = "small-linux",
+                    status = ExecutorStatus.STARTING,
+                    createdAt = Instant.parse("2026-03-08T09:59:00Z"),
+                )
+            )
+        )
+        val launcher = RecordingExecutorLauncher()
+        val service = SchedulerService(jobRepository, executorRepository, launcher)
+
+        val assignment = service.scheduleNextQueuedJob(Instant.parse("2026-03-08T10:01:00Z"))
+
+        assertNull(assignment)
+        assertTrue(launcher.launchedFlavors.isEmpty())
     }
 }
 
@@ -78,6 +138,10 @@ private class InMemorySchedulingJobRepository(
     val jobs: MutableList<Job>,
 ) : SchedulingJobRepository {
     override fun findNextQueuedJob(): Job? = jobs.filter { it.status == JobStatus.QUEUED }.minByOrNull { it.createdAt }
+
+    override fun findAssignedJob(executorId: String): Job? {
+        return jobs.firstOrNull { it.executorId == executorId && it.status == JobStatus.IN_PROGRESS }
+    }
 
     override fun markInProgress(jobId: String, executorId: String, startedAt: Instant): Job {
         val index = jobs.indexOfFirst { it.id == jobId }
@@ -107,6 +171,10 @@ private class InMemoryExecutorRepository(
         return leased
     }
 
+    override fun countByFlavorAndStatuses(flavor: String, statuses: Set<ExecutorStatus>): Int {
+        return executors.count { it.flavor == flavor && it.status in statuses }
+    }
+
     override fun markReady(executorId: String, readyAt: Instant): Executor {
         val index = executors.indexOfFirst { it.id == executorId }
         val updated = executors[index].copy(status = ExecutorStatus.READY, readyAt = readyAt)
@@ -127,4 +195,16 @@ private class InMemoryExecutorRepository(
         executors[index] = updated
         return updated
     }
+}
+
+private class RecordingExecutorLauncher : ExecutorLauncher {
+    val launchedFlavors = mutableListOf<String>()
+
+    override fun launch(flavor: String) {
+        launchedFlavors += flavor
+    }
+}
+
+private class NoopExecutorLauncher : ExecutorLauncher {
+    override fun launch(flavor: String) = Unit
 }

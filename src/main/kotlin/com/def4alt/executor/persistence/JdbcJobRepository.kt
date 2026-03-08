@@ -107,6 +107,23 @@ class JdbcJobRepository(
             .orElse(null)
     }
 
+    override fun findAssignedJob(executorId: String): Job? {
+        return jdbcClient.sql(
+            """
+            select id, script, status, cpus, memory, flavor, executor_id,
+                   stdout, stderr, exit_code, created_at, started_at, finished_at
+            from jobs
+            where executor_id = :executorId and status = 'IN_PROGRESS'
+            order by started_at desc
+            limit 1
+            """.trimIndent()
+        )
+            .param("executorId", executorId)
+            .query { rs, _ -> rs.toJob() }
+            .optional()
+            .orElse(null)
+    }
+
     override fun markInProgress(jobId: String, executorId: String, startedAt: Instant): Job {
         jdbcClient.sql(
             """

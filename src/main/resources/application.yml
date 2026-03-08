@@ -15,6 +15,17 @@ management:
         include: health,info,prometheus
 
 executor:
+  mode: ${EXECUTOR_MODE:control-plane}
+  control-plane-url: ${EXECUTOR_CONTROL_PLANE_URL:http://executor:8080}
+  scheduler:
+    enabled: ${EXECUTOR_SCHEDULER_ENABLED:true}
+    fixed-delay-ms: ${EXECUTOR_SCHEDULER_FIXED_DELAY_MS:2000}
+  kubernetes:
+    enabled: ${EXECUTOR_KUBERNETES_ENABLED:false}
+    namespace: ${EXECUTOR_KUBERNETES_NAMESPACE:executor}
+    control-plane-service-url: ${EXECUTOR_CONTROL_PLANE_URL:http://executor:8080}
+    executor-image: ${EXECUTOR_EXECUTOR_IMAGE:curlimages/curl:8.12.1}
+    image-pull-policy: ${EXECUTOR_EXECUTOR_IMAGE_PULL_POLICY:IfNotPresent}
   flavors:
     - name: small-linux
       cpus: 1

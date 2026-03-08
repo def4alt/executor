@@ -114,4 +114,51 @@ class ExecutorControllerTest {
             .andExpect(jsonPath("$.stdout").value("done\n"))
             .andExpect(jsonPath("$.exitCode").value(0))
     }
+
+    @Test
+    fun `assignment returns leased job for executor`() {
+        val createdJob = objectMapper.readValue(
+            mockMvc.perform(
+                post("/jobs")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                        objectMapper.writeValueAsBytes(
+                            CreateJobRequest(
+                                script = "echo assigned",
+                                requiredResources = ResourceSpecRequest(cpus = 1, memory = 512),
+                            )
+                        )
+                    )
+            ).andReturn().response.contentAsString,
+            JobResponse::class.java,
+        )
+
+        mockMvc.perform(
+            post("/internal/executors/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsBytes(
+                        RegisterExecutorRequest(
+                            id = "exec-3",
+                            podName = "executor-small-3",
+                            namespace = "executor",
+                            flavor = "small-linux",
+                        )
+                    )
+                )
+        ).andExpect(status().isCreated)
+
+        executorRepository.attachJob("exec-3", createdJob.id)
+        val scheduledJob = requireNotNull(jobRepository.findById(createdJob.id)).copy(
+            status = com.def4alt.executor.domain.JobStatus.IN_PROGRESS,
+            executorId = "exec-3",
+            startedAt = Instant.parse("2026-03-08T10:05:00Z"),
+        )
+        jobRepository.createOrReplace(scheduledJob)
+
+        mockMvc.perform(get("/internal/executors/{id}/assignment", "exec-3"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.jobId").value(createdJob.id))
+            .andExpect(jsonPath("$.script").value("echo assigned"))
+    }
 }

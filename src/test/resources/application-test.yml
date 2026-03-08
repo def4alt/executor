@@ -10,6 +10,10 @@ spring:
       fail-on-unknown-properties: true
 
 executor:
+  scheduler:
+    enabled: false
+  kubernetes:
+    enabled: false
   flavors:
     - name: small-linux
       cpus: 1

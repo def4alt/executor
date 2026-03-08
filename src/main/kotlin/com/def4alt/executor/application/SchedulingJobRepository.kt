@@ -6,5 +6,7 @@ import java.time.Instant
 interface SchedulingJobRepository {
     fun findNextQueuedJob(): Job?
 
+    fun findAssignedJob(executorId: String): Job?
+
     fun markInProgress(jobId: String, executorId: String, startedAt: Instant): Job
 }

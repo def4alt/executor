@@ -102,6 +102,27 @@ class JdbcExecutorRepository(
         return requireNotNull(findById(executor.id))
     }
 
+    override fun countByFlavorAndStatuses(flavor: String, statuses: Set<ExecutorStatus>): Int {
+        if (statuses.isEmpty()) {
+            return 0
+        }
+
+        val placeholders = statuses.mapIndexed { index, _ -> ":status$index" }
+        var statement = jdbcClient.sql(
+            """
+            select count(*)
+            from executors
+            where flavor = :flavor and status in (${placeholders.joinToString(", ")})
+            """.trimIndent()
+        ).param("flavor", flavor)
+
+        statuses.toList().forEachIndexed { index, status ->
+            statement = statement.param("status$index", status.name)
+        }
+
+        return statement.query(Int::class.java).single()
+    }
+
     override fun markReady(executorId: String, readyAt: Instant): Executor {
         jdbcClient.sql(
             """
