@@ -6,6 +6,7 @@ import com.def4alt.executor.domain.ExecutorStatus
 import org.springframework.jdbc.core.simple.JdbcClient
 import org.springframework.stereotype.Repository
 import java.sql.ResultSet
+import java.sql.Timestamp
 import java.time.Instant
 
 @Repository
@@ -46,10 +47,10 @@ class JdbcExecutorRepository(
             .param("flavor", executor.flavor)
             .param("status", executor.status.name)
             .param("jobId", executor.jobId)
-            .param("createdAt", executor.createdAt)
-            .param("readyAt", executor.readyAt)
-            .param("lastHeartbeatAt", executor.lastHeartbeatAt)
-            .param("leaseExpiresAt", executor.leaseExpiresAt)
+            .param("createdAt", executor.createdAt.toSqlTimestamp())
+            .param("readyAt", executor.readyAt.toSqlTimestamp())
+            .param("lastHeartbeatAt", executor.lastHeartbeatAt.toSqlTimestamp())
+            .param("leaseExpiresAt", executor.leaseExpiresAt.toSqlTimestamp())
             .update()
     }
 
@@ -94,7 +95,7 @@ class JdbcExecutorRepository(
             """.trimIndent()
         )
             .param("status", ExecutorStatus.LEASED.name)
-            .param("leaseExpiresAt", leaseExpiresAt)
+            .param("leaseExpiresAt", leaseExpiresAt.toSqlTimestamp())
             .param("id", executor.id)
             .update()
 
@@ -112,8 +113,8 @@ class JdbcExecutorRepository(
             """.trimIndent()
         )
             .param("status", ExecutorStatus.READY.name)
-            .param("readyAt", readyAt)
-            .param("lastHeartbeatAt", readyAt)
+            .param("readyAt", readyAt.toSqlTimestamp())
+            .param("lastHeartbeatAt", readyAt.toSqlTimestamp())
             .param("id", executorId)
             .update()
 
@@ -164,4 +165,6 @@ class JdbcExecutorRepository(
             leaseExpiresAt = getTimestamp("lease_expires_at")?.toInstant(),
         )
     }
+
+    private fun Instant?.toSqlTimestamp(): Timestamp? = this?.let(Timestamp::from)
 }

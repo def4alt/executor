@@ -7,6 +7,7 @@ import com.def4alt.executor.domain.ResourceSpec
 import org.springframework.jdbc.core.simple.JdbcClient
 import org.springframework.stereotype.Repository
 import java.sql.ResultSet
+import java.sql.Timestamp
 import java.time.Instant
 
 @Repository
@@ -69,9 +70,9 @@ class JdbcJobRepository(
             .param("stdout", job.stdout)
             .param("stderr", job.stderr)
             .param("exitCode", job.exitCode)
-            .param("createdAt", job.createdAt)
-            .param("startedAt", job.startedAt)
-            .param("finishedAt", job.finishedAt)
+            .param("createdAt", job.createdAt.toSqlTimestamp())
+            .param("startedAt", job.startedAt.toSqlTimestamp())
+            .param("finishedAt", job.finishedAt.toSqlTimestamp())
             .update()
     }
 
@@ -118,7 +119,7 @@ class JdbcJobRepository(
         )
             .param("status", JobStatus.IN_PROGRESS.name)
             .param("executorId", executorId)
-            .param("startedAt", startedAt)
+            .param("startedAt", startedAt.toSqlTimestamp())
             .param("id", jobId)
             .update()
 
@@ -141,7 +142,7 @@ class JdbcJobRepository(
             .param("stdout", stdout)
             .param("stderr", stderr)
             .param("exitCode", exitCode)
-            .param("finishedAt", finishedAt)
+            .param("finishedAt", finishedAt.toSqlTimestamp())
             .param("id", jobId)
             .update()
 
@@ -167,4 +168,6 @@ class JdbcJobRepository(
             finishedAt = getTimestamp("finished_at")?.toInstant(),
         )
     }
+
+    private fun Instant?.toSqlTimestamp(): Timestamp? = this?.let(Timestamp::from)
 }
