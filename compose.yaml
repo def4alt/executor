@@ -1,0 +1,27 @@
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: executor
+      POSTGRES_USER: executor
+      POSTGRES_PASSWORD: executor
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  executor-control-plane:
+    build: .
+    depends_on:
+      - postgres
+    environment:
+      EXECUTOR_DB_HOST: postgres
+      EXECUTOR_DB_PORT: 5432
+      EXECUTOR_DB_NAME: executor
+      SPRING_DATASOURCE_USERNAME: executor
+      SPRING_DATASOURCE_PASSWORD: executor
+    ports:
+      - "8080:8080"
+
+volumes:
+  postgres-data:
