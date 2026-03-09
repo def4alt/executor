@@ -6,7 +6,6 @@ data class Executor(
     val id: String,
     val podName: String,
     val namespace: String,
-    val flavor: String,
     val status: ExecutorStatus,
     val jobId: String? = null,
     val createdAt: Instant,

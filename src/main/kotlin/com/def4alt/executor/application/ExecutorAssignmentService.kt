@@ -2,13 +2,21 @@ package com.def4alt.executor.application
 
 import org.springframework.stereotype.Service
 import java.util.Base64
+import java.time.Clock
+import java.time.Instant
 
 @Service
 class ExecutorAssignmentService(
     private val jobRepository: SchedulingJobRepository,
+    private val clock: Clock,
 ) {
     fun getAssignment(executorId: String): ExecutorAssignment? {
-        val job = jobRepository.findAssignedJob(executorId) ?: return null
+        val assignedJob = jobRepository.findAssignedJob(executorId) ?: return null
+        val job = if (assignedJob.status == com.def4alt.executor.domain.JobStatus.QUEUED) {
+            jobRepository.markInProgress(assignedJob.id, executorId, Instant.now(clock))
+        } else {
+            assignedJob
+        }
 
         return ExecutorAssignment(
             jobId = job.id,

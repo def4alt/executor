@@ -184,7 +184,7 @@
           <h1>Run one job at a time, like a small terminal control plane.</h1>
           <p>
             This page is intentionally styled like a terminal window inspired by Ghostty. The backend is still the real Spring Boot service:
-            jobs go into Postgres, the scheduler matches a small executor flavor, and short-lived worker pods run the command and report the result.
+            jobs go into Postgres, the scheduler starts one executor pod for the job, and the pod runs the command and reports the result.
           </p>
         </div>
 
@@ -198,8 +198,8 @@
             <code>POST /jobs</code>
           </div>
           <div class="card">
-            <div class="label">Admin Summary</div>
-            <code>GET /admin/summary</code>
+            <div class="label">Job Status</div>
+            <code>GET /jobs/&lt;id&gt;</code>
           </div>
         </div>
 
@@ -207,7 +207,7 @@
   -H 'content-type: application/json' \
   -d '{"script":"echo hello world!","requiredResources":{"cpus":1,"memory":128}}'
 
-<span class="muted"># the control plane stores the job, launches a worker pod if needed, and records the result back in Postgres</span>
+<span class="muted"># the control plane stores the job, starts one executor pod, and records the result back in Postgres</span>
 <span class="cursor"></span></pre>
       </section>
     </main>

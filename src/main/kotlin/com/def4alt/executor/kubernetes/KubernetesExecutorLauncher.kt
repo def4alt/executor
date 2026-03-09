@@ -5,7 +5,7 @@ import com.def4alt.executor.application.ExecutorLauncher
 import com.def4alt.executor.application.ExecutorRepository
 import com.def4alt.executor.domain.Executor
 import com.def4alt.executor.domain.ExecutorStatus
-import com.def4alt.executor.domain.FlavorCatalog
+import com.def4alt.executor.domain.Job
 import io.fabric8.kubernetes.api.model.Quantity
 import io.fabric8.kubernetes.api.model.ResourceRequirementsBuilder
 import io.fabric8.kubernetes.api.model.PodBuilder
@@ -21,15 +21,13 @@ import java.util.UUID
 class KubernetesExecutorLauncher(
     private val kubernetesClient: KubernetesClient,
     private val executorRepository: ExecutorRepository,
-    private val flavorCatalog: FlavorCatalog,
     private val properties: ExecutorProperties,
     private val clock: Clock,
 ) : ExecutorLauncher {
-    override fun launch(flavor: String) {
+    override fun launch(job: Job): String {
         val executorId = UUID.randomUUID().toString()
-        val podName = "executor-${flavor.take(12)}-${executorId.take(8)}"
+        val podName = "executor-${executorId.take(8)}"
         val namespace = properties.kubernetes.namespace
-        val executorFlavor = flavorCatalog.getByName(flavor)
         val createdAt = Instant.now(clock)
 
         executorRepository.create(
@@ -37,8 +35,8 @@ class KubernetesExecutorLauncher(
                 id = executorId,
                 podName = podName,
                 namespace = namespace,
-                flavor = flavor,
                 status = ExecutorStatus.STARTING,
+                jobId = job.id,
                 createdAt = createdAt,
             )
         )
@@ -49,7 +47,6 @@ class KubernetesExecutorLauncher(
                     .withNewMetadata()
                     .withName(podName)
                     .addToLabels("app", "executor-agent")
-                    .addToLabels("executor.flavor", flavor)
                     .addToLabels("executor.id", executorId)
                     .endMetadata()
                     .withNewSpec()
@@ -60,16 +57,15 @@ class KubernetesExecutorLauncher(
                     .withImagePullPolicy(properties.kubernetes.imagePullPolicy)
                     .withCommand("sh", "-lc", agentScript())
                     .addNewEnv().withName("EXECUTOR_ID").withValue(executorId).endEnv()
-                    .addNewEnv().withName("EXECUTOR_FLAVOR").withValue(flavor).endEnv()
                     .addNewEnv().withName("EXECUTOR_POD_NAME").withValue(podName).endEnv()
                     .addNewEnv().withName("EXECUTOR_NAMESPACE").withValue(namespace).endEnv()
                     .addNewEnv().withName("EXECUTOR_CONTROL_PLANE_URL").withValue(properties.kubernetes.controlPlaneServiceUrl).endEnv()
                     .withResources(
                         ResourceRequirementsBuilder()
-                            .addToRequests("cpu", Quantity(executorFlavor.resources.cpus.toString()))
-                            .addToRequests("memory", Quantity("${executorFlavor.resources.memory}Mi"))
-                            .addToLimits("cpu", Quantity(executorFlavor.resources.cpus.toString()))
-                            .addToLimits("memory", Quantity("${executorFlavor.resources.memory}Mi"))
+                            .addToRequests("cpu", Quantity(job.requiredResources.cpus.toString()))
+                            .addToRequests("memory", Quantity("${job.requiredResources.memory}Mi"))
+                            .addToLimits("cpu", Quantity(job.requiredResources.cpus.toString()))
+                            .addToLimits("memory", Quantity("${job.requiredResources.memory}Mi"))
                             .build()
                     )
                     .endContainer()
@@ -80,6 +76,8 @@ class KubernetesExecutorLauncher(
             executorRepository.markTerminated(executorId)
             throw exception
         }
+
+        return executorId
     }
 
     private fun agentScript(): String {
@@ -87,7 +85,7 @@ class KubernetesExecutorLauncher(
         return """
         set -eu
         echo "registering executor ${dollar}EXECUTOR_ID"
-        register_payload=${dollar}(printf '{"id":"%s","podName":"%s","namespace":"%s","flavor":"%s"}' "${dollar}EXECUTOR_ID" "${dollar}EXECUTOR_POD_NAME" "${dollar}EXECUTOR_NAMESPACE" "${dollar}EXECUTOR_FLAVOR")
+        register_payload=${dollar}(printf '{"id":"%s","podName":"%s","namespace":"%s"}' "${dollar}EXECUTOR_ID" "${dollar}EXECUTOR_POD_NAME" "${dollar}EXECUTOR_NAMESPACE")
         curl -fsS -X POST -H 'Content-Type: application/json' -d "${dollar}register_payload" "${dollar}EXECUTOR_CONTROL_PLANE_URL/internal/executors/register" >/dev/null
         while true; do
           status=${dollar}(curl -sS -o /tmp/assignment.env -w '%{http_code}' "${dollar}EXECUTOR_CONTROL_PLANE_URL/internal/executors/${dollar}EXECUTOR_ID/assignment-script")

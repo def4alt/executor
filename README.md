@@ -2,15 +2,9 @@
 
 This is my small Spring Boot project for running one shell job at a time in k3s.
 The idea is to have a control plane that accepts jobs, keeps state in Postgres,
-and sends each job to one executor pod.
+and starts one executor pod for each job.
 
-I kept the default executor sizes pretty small because my homelab is not very strong:
-
-- `small-linux`: 1 vCPU, 512 MiB
-- `medium-linux`: 1 vCPU, 1024 MiB
-- `large-linux`: 2 vCPU, 2048 MiB
-
-Important note: my machine is pretty weak, so this project should not reserve too many resources or create too many warm pods by default because I still want my other services to keep working.
+Important note: my machine is pretty weak, so this project should not reserve too many resources because I still want my other services to keep working.
 
 ## Architecture
 
@@ -21,37 +15,28 @@ flowchart TD
     API --> E[(PostgreSQL: executors)]
     API --> Q[Scheduler]
 
-    Q --> M[Flavor matcher<br/>best fit]
-    M --> L[Lease READY executor<br/>transactionally]
-
-    L -->|found| X[Assign job to executor pod]
-    L -->|none found| P[Leave job QUEUED<br/>and trigger pool refill]
-
-    PM[Pool Manager] --> E
-    PM --> K8S[Kubernetes API in k3s]
-    K8S --> PODS[Warm executor pods]
+    Q --> K8S[Kubernetes API in k3s]
+    K8S --> PODS[Executor pod]
 
     PODS --> REG[Executor agent registers READY]
     REG --> E
 
-    X --> POD[Reserved executor pod]
-    POD --> RUN[Run script once]
+    REG --> RUN[Run script once]
     RUN --> RES[Send result back]
     RES --> API
 
     API --> J
     RUN --> EXIT[Executor pod exits]
-    EXIT --> PM
-    PM --> K8S
+    EXIT --> K8S
 ```
 
 ## What exists
 
-- `POST /jobs` saves a job as `QUEUED` and picks the smallest flavor that can run it.
+- `POST /jobs` saves a job as `QUEUED`.
 - `GET /jobs/{id}` returns the job state and output fields.
 - `POST /internal/executors/register` lets an executor register itself as `READY`.
 - `POST /internal/executors/{id}/result` saves the result and marks the executor as `TERMINATED`.
-- There is also basic scheduler and pool logic in the code already, but it is still an early version.
+- The scheduler starts one executor pod per queued job.
 
 ## Example curl commands
 
@@ -81,12 +66,6 @@ Check service health:
 curl https://executor.def4alt.com/actuator/health
 ```
 
-Check the small admin summary:
-
-```sh
-curl https://executor.def4alt.com/admin/summary
-```
-
 ## Local development
 
 Run tests:
@@ -112,6 +91,5 @@ On pull requests it only runs the tests and does not push an image.
 - `src/main/kotlin/com/def4alt/executor/application` - main service logic
 - `src/main/kotlin/com/def4alt/executor/domain` - core models and enums
 - `src/main/kotlin/com/def4alt/executor/persistence` - JDBC repository code
-- `src/main/kotlin/com/def4alt/executor/pool` - warm-pool calculation code
 - `src/main/resources/db/migration` - Flyway SQL migrations
 - `.github/workflows` - CI and image publishing

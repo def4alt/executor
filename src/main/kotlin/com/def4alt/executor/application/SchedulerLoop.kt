@@ -31,13 +31,10 @@ class SchedulerConfiguration {
     @Bean
     fun schedulerService(
         jobRepository: SchedulingJobRepository,
-        executorRepository: ExecutorRepository,
         executorLauncher: ExecutorLauncher,
-        properties: ExecutorProperties,
     ): SchedulerService {
         return SchedulerService(
             jobRepository = jobRepository,
-            executorRepository = executorRepository,
             executorLauncher = executorLauncher,
         )
     }

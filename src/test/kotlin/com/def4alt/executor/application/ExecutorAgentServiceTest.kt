@@ -56,7 +56,7 @@ private class FakeExecutorControlPlaneClient(
     val assignmentLookups = mutableListOf<String>()
     val reportedResults = mutableListOf<ExecutorResultCommand>()
 
-    override fun registerExecutor(executorId: String, podName: String, namespace: String, flavor: String) = Unit
+    override fun registerExecutor(executorId: String, podName: String, namespace: String) = Unit
 
     override fun fetchAssignment(executorId: String): ExecutorAssignment? {
         assignmentLookups += executorId

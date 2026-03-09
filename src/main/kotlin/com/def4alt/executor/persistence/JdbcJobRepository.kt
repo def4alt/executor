@@ -35,7 +35,6 @@ class JdbcJobRepository(
                 status,
                 cpus,
                 memory,
-                flavor,
                 executor_id,
                 stdout,
                 stderr,
@@ -49,7 +48,6 @@ class JdbcJobRepository(
                 :status,
                 :cpus,
                 :memory,
-                :flavor,
                 :executorId,
                 :stdout,
                 :stderr,
@@ -65,7 +63,6 @@ class JdbcJobRepository(
             .param("status", job.status.name)
             .param("cpus", job.requiredResources.cpus)
             .param("memory", job.requiredResources.memory)
-            .param("flavor", job.flavor)
             .param("executorId", job.executorId)
             .param("stdout", job.stdout)
             .param("stderr", job.stderr)
@@ -79,7 +76,7 @@ class JdbcJobRepository(
     override fun findById(id: String): Job? {
         return jdbcClient.sql(
             """
-            select id, script, status, cpus, memory, flavor, executor_id,
+            select id, script, status, cpus, memory, executor_id,
                    stdout, stderr, exit_code, created_at, started_at, finished_at
             from jobs
             where id = :id
@@ -94,10 +91,10 @@ class JdbcJobRepository(
     override fun findNextQueuedJob(): Job? {
         return jdbcClient.sql(
             """
-            select id, script, status, cpus, memory, flavor, executor_id,
+            select id, script, status, cpus, memory, executor_id,
                    stdout, stderr, exit_code, created_at, started_at, finished_at
             from jobs
-            where status = 'QUEUED'
+            where status = 'QUEUED' and executor_id is null
             order by created_at asc
             limit 1
             """.trimIndent()
@@ -110,11 +107,11 @@ class JdbcJobRepository(
     override fun findAssignedJob(executorId: String): Job? {
         return jdbcClient.sql(
             """
-            select id, script, status, cpus, memory, flavor, executor_id,
+            select id, script, status, cpus, memory, executor_id,
                    stdout, stderr, exit_code, created_at, started_at, finished_at
             from jobs
-            where executor_id = :executorId and status = 'IN_PROGRESS'
-            order by started_at desc
+            where executor_id = :executorId and status in ('QUEUED', 'IN_PROGRESS')
+            order by created_at desc
             limit 1
             """.trimIndent()
         )
@@ -122,6 +119,21 @@ class JdbcJobRepository(
             .query { rs, _ -> rs.toJob() }
             .optional()
             .orElse(null)
+    }
+
+    override fun assignExecutor(jobId: String, executorId: String): Job {
+        jdbcClient.sql(
+            """
+            update jobs
+            set executor_id = :executorId
+            where id = :id
+            """.trimIndent()
+        )
+            .param("executorId", executorId)
+            .param("id", jobId)
+            .update()
+
+        return requireNotNull(findById(jobId))
     }
 
     override fun markInProgress(jobId: String, executorId: String, startedAt: Instant): Job {
@@ -185,19 +197,6 @@ class JdbcJobRepository(
         return requireNotNull(findById(jobId))
     }
 
-    override fun countByStatus(status: JobStatus): Int {
-        return jdbcClient.sql(
-            """
-            select count(*)
-            from jobs
-            where status = :status
-            """.trimIndent()
-        )
-            .param("status", status.name)
-            .query(Int::class.java)
-            .single()
-    }
-
     private fun ResultSet.toJob(): Job {
         return Job(
             id = getString("id"),
@@ -207,7 +206,6 @@ class JdbcJobRepository(
                 cpus = getInt("cpus"),
                 memory = getInt("memory"),
             ),
-            flavor = getString("flavor"),
             executorId = getString("executor_id"),
             stdout = getString("stdout"),
             stderr = getString("stderr"),

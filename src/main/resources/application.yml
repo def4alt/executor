@@ -26,13 +26,3 @@ executor:
     control-plane-service-url: ${EXECUTOR_CONTROL_PLANE_URL:http://executor:8080}
     executor-image: ${EXECUTOR_EXECUTOR_IMAGE:curlimages/curl:8.12.1}
     image-pull-policy: ${EXECUTOR_EXECUTOR_IMAGE_PULL_POLICY:IfNotPresent}
-  flavors:
-    - name: small-linux
-      cpus: 1
-      memory: 512
-    - name: medium-linux
-      cpus: 1
-      memory: 1024
-    - name: large-linux
-      cpus: 2
-      memory: 2048

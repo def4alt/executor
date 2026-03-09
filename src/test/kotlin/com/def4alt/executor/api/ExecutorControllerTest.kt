@@ -38,7 +38,6 @@ class ExecutorControllerTest {
             id = "exec-1",
             podName = "executor-small-1",
             namespace = "executor-system",
-            flavor = "small-linux",
         )
 
         mockMvc.perform(
@@ -78,18 +77,12 @@ class ExecutorControllerTest {
                             id = "exec-2",
                             podName = "executor-small-2",
                             namespace = "executor-system",
-                            flavor = "small-linux",
                         )
                     )
                 )
         ).andExpect(status().isCreated)
 
-        executorRepository.attachJob("exec-2", createdJob.id)
-        val scheduledJob = requireNotNull(jobRepository.findById(createdJob.id)).copy(
-            status = com.def4alt.executor.domain.JobStatus.IN_PROGRESS,
-            executorId = "exec-2",
-            startedAt = Instant.parse("2026-03-08T10:05:00Z"),
-        )
+        val scheduledJob = requireNotNull(jobRepository.findById(createdJob.id)).copy(executorId = "exec-2")
         jobRepository.createOrReplace(scheduledJob)
 
         mockMvc.perform(
@@ -142,18 +135,12 @@ class ExecutorControllerTest {
                             id = "exec-3",
                             podName = "executor-small-3",
                             namespace = "executor",
-                            flavor = "small-linux",
                         )
                     )
                 )
         ).andExpect(status().isCreated)
 
-        executorRepository.attachJob("exec-3", createdJob.id)
-        val scheduledJob = requireNotNull(jobRepository.findById(createdJob.id)).copy(
-            status = com.def4alt.executor.domain.JobStatus.IN_PROGRESS,
-            executorId = "exec-3",
-            startedAt = Instant.parse("2026-03-08T10:05:00Z"),
-        )
+        val scheduledJob = requireNotNull(jobRepository.findById(createdJob.id)).copy(executorId = "exec-3")
         jobRepository.createOrReplace(scheduledJob)
 
         mockMvc.perform(get("/internal/executors/{id}/assignment", "exec-3"))

@@ -20,7 +20,6 @@ class ExecutorService(
                     id = request.id,
                     podName = request.podName,
                     namespace = request.namespace,
-                    flavor = request.flavor,
                     status = ExecutorStatus.STARTING,
                     createdAt = now,
                 )
@@ -35,5 +34,4 @@ data class RegisterExecutorCommand(
     val id: String,
     val podName: String,
     val namespace: String,
-    val flavor: String,
 )

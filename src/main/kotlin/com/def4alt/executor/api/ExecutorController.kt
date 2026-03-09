@@ -35,7 +35,6 @@ class ExecutorController(
                 id = request.id,
                 podName = request.podName,
                 namespace = request.namespace,
-                flavor = request.flavor,
             )
         )
 
@@ -43,7 +42,6 @@ class ExecutorController(
             id = executor.id,
             podName = executor.podName,
             namespace = executor.namespace,
-            flavor = executor.flavor,
             status = executor.status.name,
             jobId = executor.jobId,
             readyAt = executor.readyAt,
@@ -108,15 +106,12 @@ data class RegisterExecutorRequest(
     val podName: String,
     @field:NotBlank
     val namespace: String,
-    @field:NotBlank
-    val flavor: String,
 )
 
 data class ExecutorResponse(
     val id: String,
     val podName: String,
     val namespace: String,
-    val flavor: String,
     val status: String,
     val jobId: String?,
     val readyAt: Instant?,

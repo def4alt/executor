@@ -7,7 +7,6 @@ data class Job(
     val script: String,
     val status: JobStatus,
     val requiredResources: ResourceSpec,
-    val flavor: String,
     val executorId: String? = null,
     val stdout: String? = null,
     val stderr: String? = null,

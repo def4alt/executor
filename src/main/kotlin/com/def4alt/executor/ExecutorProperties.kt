@@ -6,15 +6,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties
 data class ExecutorProperties(
     val mode: String = "control-plane",
     val controlPlaneUrl: String = "http://executor:8080",
-    val flavors: List<FlavorProperties> = emptyList(),
     val scheduler: SchedulerProperties = SchedulerProperties(),
     val kubernetes: KubernetesProperties = KubernetesProperties(),
-)
-
-data class FlavorProperties(
-    val name: String,
-    val cpus: Int,
-    val memory: Int,
 )
 
 data class SchedulerProperties(

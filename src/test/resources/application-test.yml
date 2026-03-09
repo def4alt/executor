@@ -14,13 +14,3 @@ executor:
     enabled: false
   kubernetes:
     enabled: false
-  flavors:
-    - name: small-linux
-      cpus: 1
-      memory: 512
-    - name: medium-linux
-      cpus: 1
-      memory: 1024
-    - name: large-linux
-      cpus: 2
-      memory: 2048
