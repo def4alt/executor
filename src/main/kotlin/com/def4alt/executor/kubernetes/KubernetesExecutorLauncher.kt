@@ -9,6 +9,7 @@ import com.def4alt.executor.domain.Job
 import io.fabric8.kubernetes.api.model.Quantity
 import io.fabric8.kubernetes.api.model.ResourceRequirementsBuilder
 import io.fabric8.kubernetes.api.model.PodBuilder
+import io.fabric8.kubernetes.api.model.EnvVarBuilder
 import io.fabric8.kubernetes.client.KubernetesClient
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.stereotype.Component
@@ -54,12 +55,20 @@ class KubernetesExecutorLauncher(
                     .withImage(properties.kubernetes.executorImage)
                     .withImagePullPolicy(properties.kubernetes.imagePullPolicy)
                     .withArgs("--spring.main.web-application-type=none")
+                    .addNewEnv().withName("EXECUTOR_SCHEDULER_ENABLED").withValue("false").endEnv()
+                    .addNewEnv().withName("EXECUTOR_KUBERNETES_ENABLED").withValue("false").endEnv()
                     .addNewEnv().withName("EXECUTOR_MODE").withValue("executor").endEnv()
                     .addNewEnv().withName("EXECUTOR_RUNTIME_ID").withValue(executorId).endEnv()
                     .addNewEnv().withName("EXECUTOR_RUNTIME_POD_NAME").withValue(podName).endEnv()
                     .addNewEnv().withName("EXECUTOR_RUNTIME_NAMESPACE").withValue(namespace).endEnv()
                     .addNewEnv().withName("EXECUTOR_CONTROL_PLANE_URL").withValue(properties.kubernetes.controlPlaneServiceUrl).endEnv()
                     .addNewEnv().withName("EXECUTOR_INTERNAL_AUTH_TOKEN").withValue(properties.internalAuthToken).endEnv()
+                    .addNewEnv().withName("EXECUTOR_DB_HOST").withValue("executor-db-rw").endEnv()
+                    .addNewEnv().withName("EXECUTOR_DB_PORT").withValue("5432").endEnv()
+                    .addNewEnv().withName("EXECUTOR_DB_NAME").withValue("executor").endEnv()
+                    .addNewEnv().withName("SPRING_FLYWAY_ENABLED").withValue("false").endEnv()
+                    .addToEnv(secretEnv("SPRING_DATASOURCE_USERNAME", "db-user"))
+                    .addToEnv(secretEnv("SPRING_DATASOURCE_PASSWORD", "db-password"))
                     .withResources(
                         ResourceRequirementsBuilder()
                             .addToRequests("cpu", Quantity(job.requiredResources.cpus.toString()))
@@ -77,4 +86,14 @@ class KubernetesExecutorLauncher(
             throw exception
         }
     }
+
+    private fun secretEnv(name: String, key: String) = EnvVarBuilder()
+        .withName(name)
+        .withNewValueFrom()
+        .withNewSecretKeyRef()
+        .withName("executor-secrets")
+        .withKey(key)
+        .endSecretKeyRef()
+        .endValueFrom()
+        .build()
 }
