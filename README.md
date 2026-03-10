@@ -1,10 +1,10 @@
 # Executor
 
-This is my small Spring Boot project for running shell jobs on Kubernetes.
+This is my small project for running shell jobs on Kubernetes.
 The app acts as a control plane that accepts jobs, keeps state in Postgres,
 and starts one executor pod for each job.
 
-Important note: my machine is pretty weak, so this project should not reserve too many resources because I still want my other services to keep working.
+Important note: my machine is pretty weak, so this project should not reserve too many resources because I still want my other services to keep working :)
 
 ## Architecture
 
@@ -73,7 +73,7 @@ curl https://executor.def4alt.com/actuator/health
 Run tests:
 
 ```sh
-nix shell nixpkgs#gradle nixpkgs#jdk -c gradle test
+gradle test
 ```
 
 Run the app with local Postgres:
@@ -84,11 +84,6 @@ docker compose up --build
 
 That local compose setup is API-only: it disables the scheduler and Kubernetes launcher so the service can start without a cluster.
 Real remote execution requires Kubernetes plus a valid executor image and internal executor token.
-
-## Image publishing
-
-GitHub Actions builds and publishes `ghcr.io/def4alt/executor` when I push to `main` or create a version tag.
-On pull requests it only runs the tests and does not push an image.
 
 ## Layout
 
