@@ -82,14 +82,6 @@ private class InMemoryAssignmentJobRepository(
         jobs[index] = updated
         return updated
     }
-
-    override fun markFailed(jobId: String, stderr: String, finishedAt: Instant): Job {
-        val index = jobs.indexOfFirst { it.id == jobId }
-        val updated = jobs[index].copy(status = JobStatus.FAILED, stderr = stderr, finishedAt = finishedAt)
-        jobs[index] = updated
-        return updated
-    }
-
     override fun markInProgress(jobId: String, executorId: String, startedAt: Instant): Job {
         val index = jobs.indexOfFirst { it.id == jobId }
         val updated = jobs[index].copy(status = JobStatus.IN_PROGRESS, executorId = executorId, startedAt = startedAt)

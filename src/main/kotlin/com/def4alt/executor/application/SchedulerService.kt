@@ -1,6 +1,5 @@
 package com.def4alt.executor.application
 
-import java.time.Instant
 import java.util.UUID
 
 class SchedulerService(
@@ -8,9 +7,9 @@ class SchedulerService(
     private val executorLauncher: ExecutorLauncher,
     private val executorIdGenerator: () -> String = { UUID.randomUUID().toString() },
 ) {
-    fun scheduleNextQueuedJob(now: Instant): JobAssignment? {
+    fun scheduleNextQueuedJob(): Boolean {
         val executorId = executorIdGenerator()
-        val job = jobRepository.claimNextQueuedJob(executorId) ?: return null
+        val job = jobRepository.claimNextQueuedJob(executorId) ?: return false
 
         try {
             executorLauncher.launch(executorId, job)
@@ -19,12 +18,6 @@ class SchedulerService(
             throw exception
         }
 
-        return null
+        return true
     }
 }
-
-data class JobAssignment(
-    val jobId: String,
-    val executorId: String,
-    val script: String,
-)

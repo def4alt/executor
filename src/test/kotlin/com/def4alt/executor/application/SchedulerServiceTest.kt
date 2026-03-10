@@ -6,6 +6,7 @@ import com.def4alt.executor.domain.ResourceSpec
 import org.junit.jupiter.api.Test
 import java.time.Instant
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -21,9 +22,9 @@ class SchedulerServiceTest {
         val launcher = RecordingJobLauncher()
         val service = SchedulerService(jobRepository, launcher) { "exec-1" }
 
-        val result = service.scheduleNextQueuedJob(Instant.parse("2026-03-08T10:05:00Z"))
+        val launched = service.scheduleNextQueuedJob()
 
-        assertNull(result)
+        assertTrue(launched)
         assertEquals(listOf(LaunchRequest("exec-1", "job-1")), launcher.launchedJobs)
 
         val storedJob = jobRepository.requireJob("job-1")
@@ -45,9 +46,9 @@ class SchedulerServiceTest {
         val launcher = RecordingJobLauncher()
         val service = SchedulerService(jobRepository, launcher) { "exec-2" }
 
-        val result = service.scheduleNextQueuedJob(Instant.parse("2026-03-08T10:05:00Z"))
+        val launched = service.scheduleNextQueuedJob()
 
-        assertNull(result)
+        assertTrue(launched)
         assertEquals(listOf(LaunchRequest("exec-2", "job-2")), launcher.launchedJobs)
 
         val stillAssignedJob = jobRepository.requireJob("job-1")
@@ -68,8 +69,9 @@ class SchedulerServiceTest {
         val launcher = RecordingJobLauncher()
         val service = SchedulerService(jobRepository, launcher) { "exec-3" }
 
-        service.scheduleNextQueuedJob(Instant.parse("2026-03-08T10:05:00Z"))
+        val launched = service.scheduleNextQueuedJob()
 
+        assertTrue(launched)
         assertEquals(listOf(LaunchRequest("exec-3", "job-1")), launcher.launchedJobs)
         assertEquals("exec-3", jobRepository.requireJob("job-1").executorId)
         assertNull(jobRepository.requireJob("job-2").executorId)
@@ -86,9 +88,9 @@ class SchedulerServiceTest {
         val launcher = RecordingJobLauncher()
         val service = SchedulerService(jobRepository, launcher) { "exec-4" }
 
-        val result = service.scheduleNextQueuedJob(Instant.parse("2026-03-08T10:05:00Z"))
+        val launched = service.scheduleNextQueuedJob()
 
-        assertNull(result)
+        assertFalse(launched)
         assertTrue(launcher.launchedJobs.isEmpty())
         assertEquals("exec-1", jobRepository.requireJob("job-1").executorId)
         assertEquals(JobStatus.FINISHED, jobRepository.requireJob("job-2").status)
@@ -103,7 +105,7 @@ class SchedulerServiceTest {
         val service = SchedulerService(jobRepository, launcher) { "exec-5" }
 
         val failure = kotlin.runCatching {
-            service.scheduleNextQueuedJob(Instant.parse("2026-03-08T10:05:00Z"))
+            service.scheduleNextQueuedJob()
         }.exceptionOrNull()
 
         assertEquals("launcher failed", failure?.message)
@@ -132,14 +134,6 @@ private class InMemorySchedulingJobRepository(
         jobs[index] = updated
         return updated
     }
-
-    override fun markFailed(jobId: String, stderr: String, finishedAt: Instant): Job {
-        val index = jobs.indexOfFirst { it.id == jobId }
-        val updated = jobs[index].copy(status = JobStatus.FAILED, stderr = stderr, finishedAt = finishedAt)
-        jobs[index] = updated
-        return updated
-    }
-
     override fun markInProgress(jobId: String, executorId: String, startedAt: Instant): Job {
         val index = jobs.indexOfFirst { it.id == jobId }
         val updated = jobs[index].copy(status = JobStatus.IN_PROGRESS, executorId = executorId, startedAt = startedAt)
