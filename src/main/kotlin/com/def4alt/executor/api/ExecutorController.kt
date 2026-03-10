@@ -9,6 +9,7 @@ import jakarta.validation.Valid
 import jakarta.validation.constraints.Min
 import jakarta.validation.constraints.NotBlank
 import org.springframework.http.HttpStatus
+import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.GetMapping
@@ -61,6 +62,20 @@ class ExecutorController(
         )
     }
 
+    @PostMapping("/{id}/result-base64")
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    fun recordBase64Result(@PathVariable id: String, @Valid @RequestBody request: ExecutorBase64ResultRequest) {
+        executorResultService.recordResult(
+            executorId = id,
+            request = ExecutorResultCommand(
+                jobId = request.jobId,
+                stdout = request.decodeStdout(),
+                stderr = request.decodeStderr(),
+                exitCode = request.exitCode,
+            )
+        )
+    }
+
     @GetMapping("/{id}/assignment")
     fun getAssignment(@PathVariable id: String): ResponseEntity<ExecutorAssignmentResponse> {
         val assignment = executorAssignmentService.getAssignment(id)
@@ -72,6 +87,14 @@ class ExecutorController(
                 script = assignment.script,
             )
         )
+    }
+
+    @GetMapping("/{id}/assignment-script", produces = [MediaType.TEXT_PLAIN_VALUE])
+    fun getAssignmentScript(@PathVariable id: String): ResponseEntity<String> {
+        val assignmentScript = executorAssignmentService.getAssignmentScript(id)
+            ?: return ResponseEntity.noContent().build()
+
+        return ResponseEntity.ok(assignmentScript)
     }
 }
 
@@ -101,6 +124,19 @@ data class ExecutorResultRequest(
     @field:Min(0)
     val exitCode: Int,
 )
+
+data class ExecutorBase64ResultRequest(
+    @field:NotBlank
+    val jobId: String,
+    val stdoutBase64: String,
+    val stderrBase64: String,
+    @field:Min(0)
+    val exitCode: Int,
+) {
+    fun decodeStdout(): String = java.util.Base64.getDecoder().decode(stdoutBase64).decodeToString()
+
+    fun decodeStderr(): String = java.util.Base64.getDecoder().decode(stderrBase64).decodeToString()
+}
 
 data class ExecutorAssignmentResponse(
     val jobId: String,

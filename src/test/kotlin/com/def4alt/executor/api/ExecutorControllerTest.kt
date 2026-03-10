@@ -15,7 +15,9 @@ import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
+import org.springframework.test.web.servlet.result.MockMvcResultMatchers.content
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
+import java.util.Base64
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 
@@ -147,6 +149,31 @@ class ExecutorControllerTest {
     }
 
     @Test
+    fun `assignment script returns env payload for busybox executors`() {
+        val createdJob = createJob(script = "echo busybox", cpus = 1, memory = 512)
+        registerExecutor(
+            RegisterExecutorRequest(
+                id = "exec-assignment-script-1",
+                podName = "executor-script-1",
+                namespace = "executor",
+            )
+        )
+
+        val scheduledJob = requireNotNull(jobRepository.findById(createdJob.id)).copy(executorId = "exec-assignment-script-1")
+        jobRepository.createOrReplace(scheduledJob)
+
+        mockMvc.perform(
+            get("/internal/executors/{id}/assignment-script", "exec-assignment-script-1")
+                .header("X-Executor-Token", internalToken)
+        )
+            .andExpect(status().isOk)
+            .andExpect(content().string("JOB_ID=${createdJob.id}\nSCRIPT_BASE64=${Base64.getEncoder().encodeToString("echo busybox".toByteArray())}\n"))
+
+        val storedJob = requireNotNull(jobRepository.findById(createdJob.id))
+        assertEquals(JobStatus.IN_PROGRESS, storedJob.status)
+    }
+
+    @Test
     fun `result marks job finished and executor terminated`() {
         val createdJob = createJob(script = "echo done", cpus = 1, memory = 512)
         registerExecutor(
@@ -228,6 +255,45 @@ class ExecutorControllerTest {
         assertEquals(JobStatus.FAILED, storedJob.status)
         assertEquals(23, storedJob.exitCode)
         assertEquals("boom", storedJob.stderr)
+    }
+
+    @Test
+    fun `base64 result decodes payloads from busybox executors`() {
+        val createdJob = createJob(script = "printf done", cpus = 1, memory = 512)
+        registerExecutor(
+            RegisterExecutorRequest(
+                id = "exec-result-base64",
+                podName = "executor-9",
+                namespace = "executor-system",
+            )
+        )
+
+        val scheduledJob = requireNotNull(jobRepository.findById(createdJob.id)).copy(
+            status = JobStatus.IN_PROGRESS,
+            executorId = "exec-result-base64",
+        )
+        jobRepository.createOrReplace(scheduledJob)
+
+        mockMvc.perform(
+            post("/internal/executors/{id}/result-base64", "exec-result-base64")
+                .header("X-Executor-Token", internalToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsBytes(
+                        ExecutorBase64ResultRequest(
+                            jobId = createdJob.id,
+                            stdoutBase64 = Base64.getEncoder().encodeToString("done".toByteArray()),
+                            stderrBase64 = Base64.getEncoder().encodeToString("".toByteArray()),
+                            exitCode = 0,
+                        )
+                    )
+                )
+        )
+            .andExpect(status().isAccepted)
+
+        val storedJob = requireNotNull(jobRepository.findById(createdJob.id))
+        assertEquals(JobStatus.FINISHED, storedJob.status)
+        assertEquals("done", storedJob.stdout)
     }
 
     @Test
