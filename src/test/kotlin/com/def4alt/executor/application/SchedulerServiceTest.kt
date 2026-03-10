@@ -11,55 +11,92 @@ import kotlin.test.assertTrue
 
 class SchedulerServiceTest {
     @Test
-    fun `scheduleNextQueuedJob launches a new executor for an unassigned queued job`() {
+    fun `scheduleNextQueuedJob launches the oldest unassigned queued job`() {
         val jobRepository = InMemorySchedulingJobRepository(
             mutableListOf(
-                Job(
-                    id = "job-1",
-                    script = "echo run",
-                    status = JobStatus.QUEUED,
-                    requiredResources = ResourceSpec(cpus = 1, memory = 512),
-                    createdAt = Instant.parse("2026-03-08T10:00:00Z"),
-                )
+                queuedJob(id = "job-2", createdAt = "2026-03-08T10:02:00Z"),
+                queuedJob(id = "job-1", createdAt = "2026-03-08T10:00:00Z"),
             )
         )
         val launcher = RecordingJobLauncher()
         val service = SchedulerService(jobRepository, launcher)
 
-        val assignment = service.scheduleNextQueuedJob(Instant.parse("2026-03-08T10:01:00Z"))
+        val result = service.scheduleNextQueuedJob(Instant.parse("2026-03-08T10:05:00Z"))
 
-        assertNull(assignment)
+        assertNull(result)
         assertEquals(listOf("job-1"), launcher.launchedJobs)
-        assertEquals("launched-job-1", jobRepository.jobs.single().executorId)
-        assertEquals(JobStatus.QUEUED, jobRepository.jobs.single().status)
+
+        val storedJob = jobRepository.requireJob("job-1")
+        assertEquals("launched-job-1", storedJob.executorId)
+        assertEquals(JobStatus.QUEUED, storedJob.status)
+
+        val untouchedJob = jobRepository.requireJob("job-2")
+        assertNull(untouchedJob.executorId)
     }
 
     @Test
-    fun `scheduleNextQueuedJob does nothing when queued job already has an executor`() {
+    fun `scheduleNextQueuedJob skips already assigned queued jobs and launches the next eligible job`() {
         val jobRepository = InMemorySchedulingJobRepository(
             mutableListOf(
-                Job(
-                    id = "job-1",
-                    script = "echo wait",
-                    status = JobStatus.QUEUED,
-                    requiredResources = ResourceSpec(cpus = 1, memory = 512),
-                    executorId = "exec-1",
-                    createdAt = Instant.parse("2026-03-08T10:00:00Z"),
-                )
+                queuedJob(id = "job-1", createdAt = "2026-03-08T10:00:00Z", executorId = "exec-1"),
+                queuedJob(id = "job-2", createdAt = "2026-03-08T10:01:00Z"),
             )
         )
         val launcher = RecordingJobLauncher()
         val service = SchedulerService(jobRepository, launcher)
 
-        val assignment = service.scheduleNextQueuedJob(Instant.parse("2026-03-08T10:01:00Z"))
+        val result = service.scheduleNextQueuedJob(Instant.parse("2026-03-08T10:05:00Z"))
 
-        assertNull(assignment)
+        assertNull(result)
+        assertEquals(listOf("job-2"), launcher.launchedJobs)
+
+        val stillAssignedJob = jobRepository.requireJob("job-1")
+        assertEquals("exec-1", stillAssignedJob.executorId)
+
+        val launchedJob = jobRepository.requireJob("job-2")
+        assertEquals("launched-job-2", launchedJob.executorId)
+    }
+
+    @Test
+    fun `scheduleNextQueuedJob launches only one job per scheduler tick`() {
+        val jobRepository = InMemorySchedulingJobRepository(
+            mutableListOf(
+                queuedJob(id = "job-1", createdAt = "2026-03-08T10:00:00Z"),
+                queuedJob(id = "job-2", createdAt = "2026-03-08T10:01:00Z"),
+            )
+        )
+        val launcher = RecordingJobLauncher()
+        val service = SchedulerService(jobRepository, launcher)
+
+        service.scheduleNextQueuedJob(Instant.parse("2026-03-08T10:05:00Z"))
+
+        assertEquals(listOf("job-1"), launcher.launchedJobs)
+        assertEquals("launched-job-1", jobRepository.requireJob("job-1").executorId)
+        assertNull(jobRepository.requireJob("job-2").executorId)
+    }
+
+    @Test
+    fun `scheduleNextQueuedJob does nothing when no unassigned queued job exists`() {
+        val jobRepository = InMemorySchedulingJobRepository(
+            mutableListOf(
+                queuedJob(id = "job-1", createdAt = "2026-03-08T10:00:00Z", executorId = "exec-1"),
+                job(id = "job-2", status = JobStatus.FINISHED, createdAt = "2026-03-08T10:01:00Z"),
+            )
+        )
+        val launcher = RecordingJobLauncher()
+        val service = SchedulerService(jobRepository, launcher)
+
+        val result = service.scheduleNextQueuedJob(Instant.parse("2026-03-08T10:05:00Z"))
+
+        assertNull(result)
         assertTrue(launcher.launchedJobs.isEmpty())
+        assertEquals("exec-1", jobRepository.requireJob("job-1").executorId)
+        assertEquals(JobStatus.FINISHED, jobRepository.requireJob("job-2").status)
     }
 }
 
 private class InMemorySchedulingJobRepository(
-    val jobs: MutableList<Job>,
+    private val jobs: MutableList<Job>,
 ) : SchedulingJobRepository {
     override fun findNextQueuedJob(): Job? = jobs.filter { it.status == JobStatus.QUEUED && it.executorId == null }.minByOrNull { it.createdAt }
 
@@ -87,6 +124,8 @@ private class InMemorySchedulingJobRepository(
         jobs[index] = updated
         return updated
     }
+
+    fun requireJob(jobId: String): Job = jobs.first { it.id == jobId }
 }
 
 private class RecordingJobLauncher : ExecutorLauncher {
@@ -96,4 +135,26 @@ private class RecordingJobLauncher : ExecutorLauncher {
         launchedJobs += job.id
         return "launched-${job.id}"
     }
+}
+
+private fun queuedJob(
+    id: String,
+    createdAt: String,
+    executorId: String? = null,
+): Job = job(id = id, status = JobStatus.QUEUED, createdAt = createdAt, executorId = executorId)
+
+private fun job(
+    id: String,
+    status: JobStatus,
+    createdAt: String,
+    executorId: String? = null,
+): Job {
+    return Job(
+        id = id,
+        script = "echo $id",
+        status = status,
+        requiredResources = ResourceSpec(cpus = 1, memory = 512),
+        executorId = executorId,
+        createdAt = Instant.parse(createdAt),
+    )
 }

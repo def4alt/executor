@@ -7,7 +7,7 @@ import kotlin.test.assertTrue
 
 class ExecutorAgentServiceTest {
     @Test
-    fun `runSingleAssignedJob runs the script and reports the result`() {
+    fun `runSingleAssignedJob runs the assigned script and reports a successful result`() {
         val client = FakeExecutorControlPlaneClient(
             assignment = ExecutorAssignment(jobId = "job-1", script = "echo hello")
         )
@@ -35,6 +35,53 @@ class ExecutorAgentServiceTest {
     }
 
     @Test
+    fun `runSingleAssignedJob reports stderr and non-zero exit codes`() {
+        val script = "printf 'boom' >&2; exit 23"
+        val client = FakeExecutorControlPlaneClient(
+            assignment = ExecutorAssignment(jobId = "job-2", script = script)
+        )
+        val runner = FakeShellCommandRunner(
+            result = ShellCommandResult(stdout = "", stderr = "boom", exitCode = 23)
+        )
+        val service = ExecutorAgentService(client, runner)
+
+        val ranJob = service.runSingleAssignedJob("exec-2")
+
+        assertTrue(ranJob)
+        assertEquals(listOf(script), runner.commands)
+        assertEquals(
+            listOf(
+                ExecutorResultCommand(
+                    jobId = "job-2",
+                    stdout = "",
+                    stderr = "boom",
+                    exitCode = 23,
+                )
+            ),
+            client.reportedResults,
+        )
+    }
+
+    @Test
+    fun `runSingleAssignedJob preserves multi-line scripts exactly`() {
+        val script = "echo first\necho second"
+        val client = FakeExecutorControlPlaneClient(
+            assignment = ExecutorAssignment(jobId = "job-3", script = script)
+        )
+        val runner = FakeShellCommandRunner(
+            result = ShellCommandResult(stdout = "first\nsecond\n", stderr = "", exitCode = 0)
+        )
+        val service = ExecutorAgentService(client, runner)
+
+        val ranJob = service.runSingleAssignedJob("exec-3")
+
+        assertTrue(ranJob)
+        assertEquals(listOf(script), runner.commands)
+        assertEquals(1, client.assignmentLookups.size)
+        assertEquals(1, client.reportedResults.size)
+    }
+
+    @Test
     fun `runSingleAssignedJob does nothing when no assignment is available`() {
         val client = FakeExecutorControlPlaneClient(assignment = null)
         val runner = FakeShellCommandRunner(
@@ -42,9 +89,10 @@ class ExecutorAgentServiceTest {
         )
         val service = ExecutorAgentService(client, runner)
 
-        val ranJob = service.runSingleAssignedJob("exec-1")
+        val ranJob = service.runSingleAssignedJob("exec-4")
 
         assertFalse(ranJob)
+        assertEquals(listOf("exec-4"), client.assignmentLookups)
         assertTrue(runner.commands.isEmpty())
         assertTrue(client.reportedResults.isEmpty())
     }

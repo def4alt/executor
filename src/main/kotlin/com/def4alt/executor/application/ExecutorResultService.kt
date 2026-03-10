@@ -12,6 +12,11 @@ class ExecutorResultService(
     private val clock: Clock,
 ) {
     fun recordResult(executorId: String, request: ExecutorResultCommand) {
+        val job = jobRepository.findById(request.jobId) ?: throw JobNotFoundException(request.jobId)
+        if (job.executorId != executorId) {
+            throw ExecutorJobOwnershipException(executorId = executorId, jobId = request.jobId)
+        }
+
         jobRepository.markFinished(
             jobId = request.jobId,
             stdout = request.stdout,

@@ -1,6 +1,8 @@
 package com.def4alt.executor.api
 
 import com.def4alt.executor.application.ExecutorRepository
+import com.def4alt.executor.domain.ExecutorStatus
+import com.def4alt.executor.domain.JobStatus
 import com.def4alt.executor.persistence.JobRepository
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.junit.jupiter.api.Test
@@ -9,12 +11,13 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.http.MediaType
 import org.springframework.test.context.ActiveProfiles
-import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.MockMvc
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
-import java.time.Instant
+import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -33,60 +36,111 @@ class ExecutorControllerTest {
     private lateinit var executorRepository: ExecutorRepository
 
     @Test
-    fun `register marks executor ready`() {
-        val request = RegisterExecutorRequest(
-            id = "exec-1",
-            podName = "executor-small-1",
-            namespace = "executor-system",
+    fun `register marks executor ready and stores heartbeat timestamps`() {
+        val response = registerExecutor(
+            RegisterExecutorRequest(
+                id = "exec-register-1",
+                podName = "executor-1",
+                namespace = "executor-system",
+            )
         )
 
-        mockMvc.perform(
-            post("/internal/executors/register")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsBytes(request))
+        assertEquals("exec-register-1", response.id)
+        assertEquals("READY", response.status)
+        assertNotNull(response.readyAt)
+        assertNotNull(response.lastHeartbeatAt)
+
+        val storedExecutor = executorRepository.findById("exec-register-1")
+        assertNotNull(storedExecutor)
+        assertEquals(ExecutorStatus.READY, storedExecutor.status)
+        assertNotNull(storedExecutor.readyAt)
+        assertNotNull(storedExecutor.lastHeartbeatAt)
+    }
+
+    @Test
+    fun `register is safe to call twice for the same executor`() {
+        registerExecutor(
+            RegisterExecutorRequest(
+                id = "exec-register-2",
+                podName = "executor-2",
+                namespace = "executor-system",
+            )
         )
-            .andExpect(status().isCreated)
-            .andExpect(jsonPath("$.id").value("exec-1"))
-            .andExpect(jsonPath("$.status").value("READY"))
+
+        val secondResponse = registerExecutor(
+            RegisterExecutorRequest(
+                id = "exec-register-2",
+                podName = "executor-2",
+                namespace = "executor-system",
+            )
+        )
+
+        assertEquals("exec-register-2", secondResponse.id)
+        assertEquals("READY", secondResponse.status)
+
+        val storedExecutor = executorRepository.findById("exec-register-2")
+        assertNotNull(storedExecutor)
+        assertEquals(ExecutorStatus.READY, storedExecutor.status)
+    }
+
+    @Test
+    fun `assignment returns no content when no job is assigned`() {
+        registerExecutor(
+            RegisterExecutorRequest(
+                id = "exec-assignment-none",
+                podName = "executor-3",
+                namespace = "executor-system",
+            )
+        )
+
+        mockMvc.perform(get("/internal/executors/{id}/assignment", "exec-assignment-none"))
+            .andExpect(status().isNoContent)
+    }
+
+    @Test
+    fun `assignment returns the job and marks it in progress on first pickup`() {
+        val createdJob = createJob(script = "echo assigned", cpus = 1, memory = 512)
+        registerExecutor(
+            RegisterExecutorRequest(
+                id = "exec-assignment-1",
+                podName = "executor-4",
+                namespace = "executor",
+            )
+        )
+
+        val scheduledJob = requireNotNull(jobRepository.findById(createdJob.id)).copy(executorId = "exec-assignment-1")
+        jobRepository.createOrReplace(scheduledJob)
+
+        mockMvc.perform(get("/internal/executors/{id}/assignment", "exec-assignment-1"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.jobId").value(createdJob.id))
+            .andExpect(jsonPath("$.script").value("echo assigned"))
+
+        val storedJob = requireNotNull(jobRepository.findById(createdJob.id))
+        assertEquals(JobStatus.IN_PROGRESS, storedJob.status)
+        assertEquals("exec-assignment-1", storedJob.executorId)
+        assertNotNull(storedJob.startedAt)
     }
 
     @Test
     fun `result marks job finished and executor terminated`() {
-        val createdJob = objectMapper.readValue(
-            mockMvc.perform(
-                post("/jobs")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .content(
-                        objectMapper.writeValueAsBytes(
-                            CreateJobRequest(
-                                script = "echo done",
-                                requiredResources = ResourceSpecRequest(cpus = 1, memory = 512),
-                            )
-                        )
-                    )
-            ).andReturn().response.contentAsString,
-            JobResponse::class.java,
+        val createdJob = createJob(script = "echo done", cpus = 1, memory = 512)
+        registerExecutor(
+            RegisterExecutorRequest(
+                id = "exec-result-1",
+                podName = "executor-5",
+                namespace = "executor-system",
+            )
         )
 
-        mockMvc.perform(
-            post("/internal/executors/register")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(
-                    objectMapper.writeValueAsBytes(
-                        RegisterExecutorRequest(
-                            id = "exec-2",
-                            podName = "executor-small-2",
-                            namespace = "executor-system",
-                        )
-                    )
-                )
-        ).andExpect(status().isCreated)
-
-        val scheduledJob = requireNotNull(jobRepository.findById(createdJob.id)).copy(executorId = "exec-2")
+        val scheduledJob = requireNotNull(jobRepository.findById(createdJob.id)).copy(
+            status = JobStatus.IN_PROGRESS,
+            executorId = "exec-result-1",
+        )
         jobRepository.createOrReplace(scheduledJob)
 
         mockMvc.perform(
-            post("/internal/executors/{id}/result", "exec-2")
+            post("/internal/executors/{id}/result", "exec-result-1")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     objectMapper.writeValueAsBytes(
@@ -101,51 +155,84 @@ class ExecutorControllerTest {
         )
             .andExpect(status().isAccepted)
 
-        mockMvc.perform(get("/jobs/{id}", createdJob.id))
-            .andExpect(status().isOk)
-            .andExpect(jsonPath("$.status").value("FINISHED"))
-            .andExpect(jsonPath("$.stdout").value("done\n"))
-            .andExpect(jsonPath("$.exitCode").value(0))
+        val storedJob = requireNotNull(jobRepository.findById(createdJob.id))
+        assertEquals(JobStatus.FINISHED, storedJob.status)
+        assertEquals("done\n", storedJob.stdout)
+        assertEquals(0, storedJob.exitCode)
+        assertNotNull(storedJob.finishedAt)
+
+        val storedExecutor = requireNotNull(executorRepository.findById("exec-result-1"))
+        assertEquals(ExecutorStatus.TERMINATED, storedExecutor.status)
     }
 
     @Test
-    fun `assignment returns leased job for executor`() {
-        val createdJob = objectMapper.readValue(
-            mockMvc.perform(
-                post("/jobs")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .content(
-                        objectMapper.writeValueAsBytes(
-                            CreateJobRequest(
-                                script = "echo assigned",
-                                requiredResources = ResourceSpecRequest(cpus = 1, memory = 512),
-                            )
-                        )
-                    )
-            ).andReturn().response.contentAsString,
-            JobResponse::class.java,
+    fun `result rejects executors that do not own the job`() {
+        val createdJob = createJob(script = "echo nope", cpus = 1, memory = 512)
+        registerExecutor(RegisterExecutorRequest(id = "exec-owner", podName = "executor-6", namespace = "executor"))
+        registerExecutor(RegisterExecutorRequest(id = "exec-stranger", podName = "executor-7", namespace = "executor"))
+
+        val scheduledJob = requireNotNull(jobRepository.findById(createdJob.id)).copy(
+            status = JobStatus.IN_PROGRESS,
+            executorId = "exec-owner",
         )
+        jobRepository.createOrReplace(scheduledJob)
 
         mockMvc.perform(
-            post("/internal/executors/register")
+            post("/internal/executors/{id}/result", "exec-stranger")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     objectMapper.writeValueAsBytes(
-                        RegisterExecutorRequest(
-                            id = "exec-3",
-                            podName = "executor-small-3",
-                            namespace = "executor",
+                        ExecutorResultRequest(
+                            jobId = createdJob.id,
+                            stdout = "",
+                            stderr = "",
+                            exitCode = 0,
                         )
                     )
                 )
-        ).andExpect(status().isCreated)
+        )
+            .andExpect(status().isConflict)
 
-        val scheduledJob = requireNotNull(jobRepository.findById(createdJob.id)).copy(executorId = "exec-3")
-        jobRepository.createOrReplace(scheduledJob)
+        val storedJob = requireNotNull(jobRepository.findById(createdJob.id))
+        assertEquals(JobStatus.IN_PROGRESS, storedJob.status)
+        assertEquals("exec-owner", storedJob.executorId)
 
-        mockMvc.perform(get("/internal/executors/{id}/assignment", "exec-3"))
-            .andExpect(status().isOk)
-            .andExpect(jsonPath("$.jobId").value(createdJob.id))
-            .andExpect(jsonPath("$.script").value("echo assigned"))
+        val strangerExecutor = requireNotNull(executorRepository.findById("exec-stranger"))
+        assertEquals(ExecutorStatus.READY, strangerExecutor.status)
+    }
+
+    private fun registerExecutor(request: RegisterExecutorRequest): ExecutorResponse {
+        val body = mockMvc.perform(
+            post("/internal/executors/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsBytes(request))
+        )
+            .andExpect(status().isCreated)
+            .andReturn()
+            .response
+            .contentAsString
+
+        return objectMapper.readValue(body, ExecutorResponse::class.java)
+    }
+
+    private fun createJob(script: String, cpus: Int, memory: Int): JobResponse {
+        val body = mockMvc.perform(
+            post("/jobs")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsBytes(
+                        CreateJobRequest(
+                            script = script,
+                            requiredResources = ResourceSpecRequest(cpus = cpus, memory = memory),
+                        )
+                    )
+                )
+        )
+            .andExpect(status().isCreated)
+            .andReturn()
+            .response
+            .contentAsString
+
+        return objectMapper.readValue(body, JobResponse::class.java)
     }
 }
