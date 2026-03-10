@@ -51,7 +51,7 @@ curl -X POST https://executor.def4alt.com/jobs \
     "script": "echo hello world!",
     "requiredResources": {
       "cpus": 1,
-      "memory": 128
+      "memory": 1024
     }
   }'
 ```
