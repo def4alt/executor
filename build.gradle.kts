@@ -36,6 +36,7 @@ dependencies {
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
+    testImplementation("io.fabric8:kubernetes-server-mock:6.13.5")
 }
 
 tasks.withType<Test> {
