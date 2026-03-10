@@ -1,6 +1,7 @@
 package com.def4alt.executor.application
 
 import com.def4alt.executor.ExecutorProperties
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -10,7 +11,7 @@ import java.time.Clock
 import java.time.Instant
 
 @Component
-@ConditionalOnProperty(prefix = "executor", name = ["mode"], havingValue = "control-plane", matchIfMissing = true)
+@ConditionalOnExpression("'\${executor.mode:control-plane}' == 'control-plane' and \${executor.scheduler.enabled:true}")
 class SchedulerLoop(
     private val schedulerService: SchedulerService,
     private val properties: ExecutorProperties,
@@ -27,8 +28,10 @@ class SchedulerLoop(
 }
 
 @Configuration
+@ConditionalOnProperty(prefix = "executor", name = ["mode"], havingValue = "control-plane", matchIfMissing = true)
 class SchedulerConfiguration {
     @Bean
+    @ConditionalOnExpression("\${executor.scheduler.enabled:true}")
     fun schedulerService(
         jobRepository: SchedulingJobRepository,
         executorLauncher: ExecutorLauncher,

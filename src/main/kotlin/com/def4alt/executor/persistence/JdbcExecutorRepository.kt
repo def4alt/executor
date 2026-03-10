@@ -23,9 +23,7 @@ class JdbcExecutorRepository(
                 status,
                 job_id,
                 created_at,
-                ready_at,
-                last_heartbeat_at,
-                lease_expires_at
+                ready_at
             ) values (
                 :id,
                 :podName,
@@ -33,9 +31,7 @@ class JdbcExecutorRepository(
                 :status,
                 :jobId,
                 :createdAt,
-                :readyAt,
-                :lastHeartbeatAt,
-                :leaseExpiresAt
+                :readyAt
             )
             """.trimIndent()
         )
@@ -46,8 +42,6 @@ class JdbcExecutorRepository(
             .param("jobId", executor.jobId)
             .param("createdAt", executor.createdAt.toSqlTimestamp())
             .param("readyAt", executor.readyAt.toSqlTimestamp())
-            .param("lastHeartbeatAt", executor.lastHeartbeatAt.toSqlTimestamp())
-            .param("leaseExpiresAt", executor.leaseExpiresAt.toSqlTimestamp())
             .update()
     }
 
@@ -55,7 +49,7 @@ class JdbcExecutorRepository(
         return jdbcClient.sql(
             """
             select id, pod_name, namespace, status, job_id, created_at,
-                   ready_at, last_heartbeat_at, lease_expires_at
+                   ready_at
             from executors
             where id = :id
             """.trimIndent()
@@ -71,14 +65,12 @@ class JdbcExecutorRepository(
             """
             update executors
             set status = :status,
-                ready_at = :readyAt,
-                last_heartbeat_at = :lastHeartbeatAt
+                ready_at = :readyAt
             where id = :id
             """.trimIndent()
         )
             .param("status", ExecutorStatus.READY.name)
             .param("readyAt", readyAt.toSqlTimestamp())
-            .param("lastHeartbeatAt", readyAt.toSqlTimestamp())
             .param("id", executorId)
             .update()
 
@@ -109,8 +101,6 @@ class JdbcExecutorRepository(
             jobId = getString("job_id"),
             createdAt = getTimestamp("created_at").toInstant(),
             readyAt = getTimestamp("ready_at")?.toInstant(),
-            lastHeartbeatAt = getTimestamp("last_heartbeat_at")?.toInstant(),
-            leaseExpiresAt = getTimestamp("lease_expires_at")?.toInstant(),
         )
     }
 

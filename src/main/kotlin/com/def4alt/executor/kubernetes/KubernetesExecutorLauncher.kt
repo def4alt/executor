@@ -14,7 +14,6 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.stereotype.Component
 import java.time.Clock
 import java.time.Instant
-import java.util.UUID
 
 @Component
 @ConditionalOnProperty(prefix = "executor.kubernetes", name = ["enabled"], havingValue = "true")
@@ -24,8 +23,7 @@ class KubernetesExecutorLauncher(
     private val properties: ExecutorProperties,
     private val clock: Clock,
 ) : ExecutorLauncher {
-    override fun launch(job: Job): String {
-        val executorId = UUID.randomUUID().toString()
+    override fun launch(executorId: String, job: Job) {
         val podName = "executor-${executorId.take(8)}"
         val namespace = properties.kubernetes.namespace
         val createdAt = Instant.now(clock)
@@ -55,11 +53,13 @@ class KubernetesExecutorLauncher(
                     .withName("executor-agent")
                     .withImage(properties.kubernetes.executorImage)
                     .withImagePullPolicy(properties.kubernetes.imagePullPolicy)
-                    .withCommand("sh", "-lc", agentScript())
-                    .addNewEnv().withName("EXECUTOR_ID").withValue(executorId).endEnv()
-                    .addNewEnv().withName("EXECUTOR_POD_NAME").withValue(podName).endEnv()
-                    .addNewEnv().withName("EXECUTOR_NAMESPACE").withValue(namespace).endEnv()
+                    .withArgs("--spring.main.web-application-type=none")
+                    .addNewEnv().withName("EXECUTOR_MODE").withValue("executor").endEnv()
+                    .addNewEnv().withName("EXECUTOR_RUNTIME_ID").withValue(executorId).endEnv()
+                    .addNewEnv().withName("EXECUTOR_RUNTIME_POD_NAME").withValue(podName).endEnv()
+                    .addNewEnv().withName("EXECUTOR_RUNTIME_NAMESPACE").withValue(namespace).endEnv()
                     .addNewEnv().withName("EXECUTOR_CONTROL_PLANE_URL").withValue(properties.kubernetes.controlPlaneServiceUrl).endEnv()
+                    .addNewEnv().withName("EXECUTOR_INTERNAL_AUTH_TOKEN").withValue(properties.internalAuthToken).endEnv()
                     .withResources(
                         ResourceRequirementsBuilder()
                             .addToRequests("cpu", Quantity(job.requiredResources.cpus.toString()))
@@ -76,44 +76,5 @@ class KubernetesExecutorLauncher(
             executorRepository.markTerminated(executorId)
             throw exception
         }
-
-        return executorId
-    }
-
-    private fun agentScript(): String {
-        val dollar = '$'
-        return """
-        set -eu
-        echo "registering executor ${dollar}EXECUTOR_ID"
-        register_payload=${dollar}(printf '{"id":"%s","podName":"%s","namespace":"%s"}' "${dollar}EXECUTOR_ID" "${dollar}EXECUTOR_POD_NAME" "${dollar}EXECUTOR_NAMESPACE")
-        curl -fsS -X POST -H 'Content-Type: application/json' -d "${dollar}register_payload" "${dollar}EXECUTOR_CONTROL_PLANE_URL/internal/executors/register" >/dev/null
-        while true; do
-          status=${dollar}(curl -sS -o /tmp/assignment.env -w '%{http_code}' "${dollar}EXECUTOR_CONTROL_PLANE_URL/internal/executors/${dollar}EXECUTOR_ID/assignment-script")
-          if [ "${dollar}status" = "204" ]; then
-            sleep 1
-            continue
-          fi
-          if [ "${dollar}status" = "200" ]; then
-            . /tmp/assignment.env
-            break
-          fi
-          echo "assignment poll failed with status ${dollar}status" >&2
-          exit 1
-        done
-        echo "running job ${dollar}JOB_ID"
-        printf '%s' "${dollar}SCRIPT_BASE64" | base64 -d >/tmp/job.sh
-        sh /tmp/job.sh >/tmp/stdout 2>/tmp/stderr || EXIT_CODE=${dollar}?
-        : "${dollar}{EXIT_CODE:=0}"
-        stdout_b64=${dollar}(base64 </tmp/stdout | tr -d '\n')
-        stderr_b64=${dollar}(base64 </tmp/stderr | tr -d '\n')
-        result_payload=${dollar}(printf '{"jobId":"%s","stdoutBase64":"%s","stderrBase64":"%s","exitCode":%s}' "${dollar}JOB_ID" "${dollar}stdout_b64" "${dollar}stderr_b64" "${dollar}EXIT_CODE")
-        result_status=${dollar}(curl -sS -o /tmp/result-response -w '%{http_code}' -X POST -H 'Content-Type: application/json' -d "${dollar}result_payload" "${dollar}EXECUTOR_CONTROL_PLANE_URL/internal/executors/${dollar}EXECUTOR_ID/result-base64")
-        if [ "${dollar}result_status" != "202" ]; then
-          echo "result callback failed with status ${dollar}result_status" >&2
-          cat /tmp/result-response >&2 || true
-          exit 1
-        fi
-        echo "finished job ${dollar}JOB_ID"
-        """.trimIndent()
     }
 }

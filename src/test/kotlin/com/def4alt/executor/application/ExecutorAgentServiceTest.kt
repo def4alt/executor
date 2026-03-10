@@ -7,7 +7,7 @@ import kotlin.test.assertTrue
 
 class ExecutorAgentServiceTest {
     @Test
-    fun `runSingleAssignedJob runs the assigned script and reports a successful result`() {
+    fun `runRegisteredExecutor registers before running the assigned script`() {
         val client = FakeExecutorControlPlaneClient(
             assignment = ExecutorAssignment(jobId = "job-1", script = "echo hello")
         )
@@ -16,9 +16,16 @@ class ExecutorAgentServiceTest {
         )
         val service = ExecutorAgentService(client, runner)
 
-        val ranJob = service.runSingleAssignedJob("exec-1")
+        val ranJob = service.runRegisteredExecutor(
+            ExecutorRuntimeCommand(
+                executorId = "exec-1",
+                podName = "executor-pod-1",
+                namespace = "executor",
+            )
+        )
 
         assertTrue(ranJob)
+        assertEquals(listOf(RegisteredExecutor("exec-1", "executor-pod-1", "executor")), client.registrations)
         assertEquals(listOf("exec-1"), client.assignmentLookups)
         assertEquals(listOf("echo hello"), runner.commands)
         assertEquals(
@@ -98,13 +105,22 @@ class ExecutorAgentServiceTest {
     }
 }
 
+private data class RegisteredExecutor(
+    val executorId: String,
+    val podName: String,
+    val namespace: String,
+)
+
 private class FakeExecutorControlPlaneClient(
     private val assignment: ExecutorAssignment?,
 ) : ExecutorControlPlaneClient {
+    val registrations = mutableListOf<RegisteredExecutor>()
     val assignmentLookups = mutableListOf<String>()
     val reportedResults = mutableListOf<ExecutorResultCommand>()
 
-    override fun registerExecutor(executorId: String, podName: String, namespace: String) = Unit
+    override fun registerExecutor(executorId: String, podName: String, namespace: String) {
+        registrations += RegisteredExecutor(executorId, podName, namespace)
+    }
 
     override fun fetchAssignment(executorId: String): ExecutorAssignment? {
         assignmentLookups += executorId

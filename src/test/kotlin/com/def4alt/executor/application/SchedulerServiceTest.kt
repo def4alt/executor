@@ -19,15 +19,15 @@ class SchedulerServiceTest {
             )
         )
         val launcher = RecordingJobLauncher()
-        val service = SchedulerService(jobRepository, launcher)
+        val service = SchedulerService(jobRepository, launcher) { "exec-1" }
 
         val result = service.scheduleNextQueuedJob(Instant.parse("2026-03-08T10:05:00Z"))
 
         assertNull(result)
-        assertEquals(listOf("job-1"), launcher.launchedJobs)
+        assertEquals(listOf(LaunchRequest("exec-1", "job-1")), launcher.launchedJobs)
 
         val storedJob = jobRepository.requireJob("job-1")
-        assertEquals("launched-job-1", storedJob.executorId)
+        assertEquals("exec-1", storedJob.executorId)
         assertEquals(JobStatus.QUEUED, storedJob.status)
 
         val untouchedJob = jobRepository.requireJob("job-2")
@@ -43,18 +43,18 @@ class SchedulerServiceTest {
             )
         )
         val launcher = RecordingJobLauncher()
-        val service = SchedulerService(jobRepository, launcher)
+        val service = SchedulerService(jobRepository, launcher) { "exec-2" }
 
         val result = service.scheduleNextQueuedJob(Instant.parse("2026-03-08T10:05:00Z"))
 
         assertNull(result)
-        assertEquals(listOf("job-2"), launcher.launchedJobs)
+        assertEquals(listOf(LaunchRequest("exec-2", "job-2")), launcher.launchedJobs)
 
         val stillAssignedJob = jobRepository.requireJob("job-1")
         assertEquals("exec-1", stillAssignedJob.executorId)
 
         val launchedJob = jobRepository.requireJob("job-2")
-        assertEquals("launched-job-2", launchedJob.executorId)
+        assertEquals("exec-2", launchedJob.executorId)
     }
 
     @Test
@@ -66,12 +66,12 @@ class SchedulerServiceTest {
             )
         )
         val launcher = RecordingJobLauncher()
-        val service = SchedulerService(jobRepository, launcher)
+        val service = SchedulerService(jobRepository, launcher) { "exec-3" }
 
         service.scheduleNextQueuedJob(Instant.parse("2026-03-08T10:05:00Z"))
 
-        assertEquals(listOf("job-1"), launcher.launchedJobs)
-        assertEquals("launched-job-1", jobRepository.requireJob("job-1").executorId)
+        assertEquals(listOf(LaunchRequest("exec-3", "job-1")), launcher.launchedJobs)
+        assertEquals("exec-3", jobRepository.requireJob("job-1").executorId)
         assertNull(jobRepository.requireJob("job-2").executorId)
     }
 
@@ -84,7 +84,7 @@ class SchedulerServiceTest {
             )
         )
         val launcher = RecordingJobLauncher()
-        val service = SchedulerService(jobRepository, launcher)
+        val service = SchedulerService(jobRepository, launcher) { "exec-4" }
 
         val result = service.scheduleNextQueuedJob(Instant.parse("2026-03-08T10:05:00Z"))
 
@@ -93,20 +93,42 @@ class SchedulerServiceTest {
         assertEquals("exec-1", jobRepository.requireJob("job-1").executorId)
         assertEquals(JobStatus.FINISHED, jobRepository.requireJob("job-2").status)
     }
+
+    @Test
+    fun `scheduleNextQueuedJob clears the claim when launcher creation fails`() {
+        val jobRepository = InMemorySchedulingJobRepository(
+            mutableListOf(queuedJob(id = "job-1", createdAt = "2026-03-08T10:00:00Z"))
+        )
+        val launcher = RecordingJobLauncher(shouldFail = true)
+        val service = SchedulerService(jobRepository, launcher) { "exec-5" }
+
+        val failure = kotlin.runCatching {
+            service.scheduleNextQueuedJob(Instant.parse("2026-03-08T10:05:00Z"))
+        }.exceptionOrNull()
+
+        assertEquals("launcher failed", failure?.message)
+        assertNull(jobRepository.requireJob("job-1").executorId)
+    }
 }
 
 private class InMemorySchedulingJobRepository(
     private val jobs: MutableList<Job>,
 ) : SchedulingJobRepository {
-    override fun findNextQueuedJob(): Job? = jobs.filter { it.status == JobStatus.QUEUED && it.executorId == null }.minByOrNull { it.createdAt }
+    override fun claimNextQueuedJob(executorId: String): Job? {
+        val job = jobs.filter { it.status == JobStatus.QUEUED && it.executorId == null }.minByOrNull { it.createdAt } ?: return null
+        val index = jobs.indexOfFirst { it.id == job.id }
+        val updated = jobs[index].copy(executorId = executorId)
+        jobs[index] = updated
+        return updated
+    }
 
     override fun findAssignedJob(executorId: String): Job? {
         return jobs.firstOrNull { it.executorId == executorId && it.status in setOf(JobStatus.QUEUED, JobStatus.IN_PROGRESS) }
     }
 
-    override fun assignExecutor(jobId: String, executorId: String): Job {
+    override fun clearExecutorAssignment(jobId: String): Job {
         val index = jobs.indexOfFirst { it.id == jobId }
-        val updated = jobs[index].copy(executorId = executorId)
+        val updated = jobs[index].copy(executorId = null)
         jobs[index] = updated
         return updated
     }
@@ -128,12 +150,21 @@ private class InMemorySchedulingJobRepository(
     fun requireJob(jobId: String): Job = jobs.first { it.id == jobId }
 }
 
-private class RecordingJobLauncher : ExecutorLauncher {
-    val launchedJobs = mutableListOf<String>()
+private data class LaunchRequest(
+    val executorId: String,
+    val jobId: String,
+)
 
-    override fun launch(job: Job): String {
-        launchedJobs += job.id
-        return "launched-${job.id}"
+private class RecordingJobLauncher(
+    private val shouldFail: Boolean = false,
+) : ExecutorLauncher {
+    val launchedJobs = mutableListOf<LaunchRequest>()
+
+    override fun launch(executorId: String, job: Job) {
+        launchedJobs += LaunchRequest(executorId = executorId, jobId = job.id)
+        if (shouldFail) {
+            throw IllegalStateException("launcher failed")
+        }
     }
 }
 

@@ -10,6 +10,4 @@ data class Executor(
     val jobId: String? = null,
     val createdAt: Instant,
     val readyAt: Instant? = null,
-    val lastHeartbeatAt: Instant? = null,
-    val leaseExpiresAt: Instant? = null,
 )

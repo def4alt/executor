@@ -88,20 +88,29 @@ class JdbcJobRepository(
             .orElse(null)
     }
 
-    override fun findNextQueuedJob(): Job? {
-        return jdbcClient.sql(
+    override fun claimNextQueuedJob(executorId: String): Job? {
+        val updatedRows = jdbcClient.sql(
             """
-            select id, script, status, cpus, memory, executor_id,
-                   stdout, stderr, exit_code, created_at, started_at, finished_at
-            from jobs
-            where status = 'QUEUED' and executor_id is null
-            order by created_at asc
-            limit 1
+            update jobs
+            set executor_id = :executorId
+            where id = (
+                select id
+                from jobs
+                where status = 'QUEUED' and executor_id is null
+                order by created_at asc
+                limit 1
+            )
+            and executor_id is null
             """.trimIndent()
         )
-            .query { rs, _ -> rs.toJob() }
-            .optional()
-            .orElse(null)
+            .param("executorId", executorId)
+            .update()
+
+        if (updatedRows == 0) {
+            return null
+        }
+
+        return findAssignedJob(executorId)
     }
 
     override fun findAssignedJob(executorId: String): Job? {
@@ -121,15 +130,14 @@ class JdbcJobRepository(
             .orElse(null)
     }
 
-    override fun assignExecutor(jobId: String, executorId: String): Job {
+    override fun clearExecutorAssignment(jobId: String): Job {
         jdbcClient.sql(
             """
             update jobs
-            set executor_id = :executorId
+            set executor_id = null
             where id = :id
             """.trimIndent()
         )
-            .param("executorId", executorId)
             .param("id", jobId)
             .update()
 
@@ -174,7 +182,7 @@ class JdbcJobRepository(
         return requireNotNull(findById(jobId))
     }
 
-    fun markFinished(jobId: String, stdout: String, stderr: String, exitCode: Int, finishedAt: Instant): Job {
+    fun markCompleted(jobId: String, stdout: String, stderr: String, exitCode: Int, finishedAt: Instant): Job {
         jdbcClient.sql(
             """
             update jobs
@@ -186,7 +194,7 @@ class JdbcJobRepository(
             where id = :id
             """.trimIndent()
         )
-            .param("status", JobStatus.FINISHED.name)
+            .param("status", if (exitCode == 0) JobStatus.FINISHED.name else JobStatus.FAILED.name)
             .param("stdout", stdout)
             .param("stderr", stderr)
             .param("exitCode", exitCode)

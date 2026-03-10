@@ -17,7 +17,7 @@ class ExecutorResultService(
             throw ExecutorJobOwnershipException(executorId = executorId, jobId = request.jobId)
         }
 
-        jobRepository.markFinished(
+        jobRepository.markCompleted(
             jobId = request.jobId,
             stdout = request.stdout,
             stderr = request.stderr,

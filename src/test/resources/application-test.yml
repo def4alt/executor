@@ -10,6 +10,7 @@ spring:
       fail-on-unknown-properties: true
 
 executor:
+  internal-auth-token: test-internal-token
   scheduler:
     enabled: false
   kubernetes:

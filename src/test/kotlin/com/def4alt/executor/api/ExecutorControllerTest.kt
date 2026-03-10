@@ -23,6 +23,8 @@ import kotlin.test.assertNotNull
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 class ExecutorControllerTest {
+    private val internalToken = "test-internal-token"
+
     @Autowired
     private lateinit var mockMvc: MockMvc
 
@@ -36,7 +38,7 @@ class ExecutorControllerTest {
     private lateinit var executorRepository: ExecutorRepository
 
     @Test
-    fun `register marks executor ready and stores heartbeat timestamps`() {
+    fun `register marks executor ready`() {
         val response = registerExecutor(
             RegisterExecutorRequest(
                 id = "exec-register-1",
@@ -48,13 +50,29 @@ class ExecutorControllerTest {
         assertEquals("exec-register-1", response.id)
         assertEquals("READY", response.status)
         assertNotNull(response.readyAt)
-        assertNotNull(response.lastHeartbeatAt)
 
         val storedExecutor = executorRepository.findById("exec-register-1")
         assertNotNull(storedExecutor)
         assertEquals(ExecutorStatus.READY, storedExecutor.status)
         assertNotNull(storedExecutor.readyAt)
-        assertNotNull(storedExecutor.lastHeartbeatAt)
+    }
+
+    @Test
+    fun `register rejects requests without the internal token`() {
+        mockMvc.perform(
+            post("/internal/executors/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsBytes(
+                        RegisterExecutorRequest(
+                            id = "exec-missing-token",
+                            podName = "executor-missing-token",
+                            namespace = "executor",
+                        )
+                    )
+                )
+        )
+            .andExpect(status().isUnauthorized)
     }
 
     @Test
@@ -93,7 +111,10 @@ class ExecutorControllerTest {
             )
         )
 
-        mockMvc.perform(get("/internal/executors/{id}/assignment", "exec-assignment-none"))
+        mockMvc.perform(
+            get("/internal/executors/{id}/assignment", "exec-assignment-none")
+                .header("X-Executor-Token", internalToken)
+        )
             .andExpect(status().isNoContent)
     }
 
@@ -111,7 +132,10 @@ class ExecutorControllerTest {
         val scheduledJob = requireNotNull(jobRepository.findById(createdJob.id)).copy(executorId = "exec-assignment-1")
         jobRepository.createOrReplace(scheduledJob)
 
-        mockMvc.perform(get("/internal/executors/{id}/assignment", "exec-assignment-1"))
+        mockMvc.perform(
+            get("/internal/executors/{id}/assignment", "exec-assignment-1")
+                .header("X-Executor-Token", internalToken)
+        )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.jobId").value(createdJob.id))
             .andExpect(jsonPath("$.script").value("echo assigned"))
@@ -141,6 +165,7 @@ class ExecutorControllerTest {
 
         mockMvc.perform(
             post("/internal/executors/{id}/result", "exec-result-1")
+                .header("X-Executor-Token", internalToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     objectMapper.writeValueAsBytes(
@@ -166,6 +191,46 @@ class ExecutorControllerTest {
     }
 
     @Test
+    fun `result marks non-zero exit codes as failed`() {
+        val createdJob = createJob(script = "exit 23", cpus = 1, memory = 512)
+        registerExecutor(
+            RegisterExecutorRequest(
+                id = "exec-result-fail",
+                podName = "executor-8",
+                namespace = "executor-system",
+            )
+        )
+
+        val scheduledJob = requireNotNull(jobRepository.findById(createdJob.id)).copy(
+            status = JobStatus.IN_PROGRESS,
+            executorId = "exec-result-fail",
+        )
+        jobRepository.createOrReplace(scheduledJob)
+
+        mockMvc.perform(
+            post("/internal/executors/{id}/result", "exec-result-fail")
+                .header("X-Executor-Token", internalToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsBytes(
+                        ExecutorResultRequest(
+                            jobId = createdJob.id,
+                            stdout = "",
+                            stderr = "boom",
+                            exitCode = 23,
+                        )
+                    )
+                )
+        )
+            .andExpect(status().isAccepted)
+
+        val storedJob = requireNotNull(jobRepository.findById(createdJob.id))
+        assertEquals(JobStatus.FAILED, storedJob.status)
+        assertEquals(23, storedJob.exitCode)
+        assertEquals("boom", storedJob.stderr)
+    }
+
+    @Test
     fun `result rejects executors that do not own the job`() {
         val createdJob = createJob(script = "echo nope", cpus = 1, memory = 512)
         registerExecutor(RegisterExecutorRequest(id = "exec-owner", podName = "executor-6", namespace = "executor"))
@@ -179,6 +244,7 @@ class ExecutorControllerTest {
 
         mockMvc.perform(
             post("/internal/executors/{id}/result", "exec-stranger")
+                .header("X-Executor-Token", internalToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     objectMapper.writeValueAsBytes(
@@ -204,6 +270,7 @@ class ExecutorControllerTest {
     private fun registerExecutor(request: RegisterExecutorRequest): ExecutorResponse {
         val body = mockMvc.perform(
             post("/internal/executors/register")
+                .header("X-Executor-Token", internalToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsBytes(request))
         )

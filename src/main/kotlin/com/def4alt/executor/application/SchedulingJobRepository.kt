@@ -4,11 +4,11 @@ import com.def4alt.executor.domain.Job
 import java.time.Instant
 
 interface SchedulingJobRepository {
-    fun findNextQueuedJob(): Job?
+    fun claimNextQueuedJob(executorId: String): Job?
 
     fun findAssignedJob(executorId: String): Job?
 
-    fun assignExecutor(jobId: String, executorId: String): Job
+    fun clearExecutorAssignment(jobId: String): Job
 
     fun markFailed(jobId: String, stderr: String, finishedAt: Instant): Job
 

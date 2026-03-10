@@ -1,21 +1,24 @@
 package com.def4alt.executor.application
 
-import com.def4alt.executor.domain.ExecutorStatus
-import java.time.Duration
 import java.time.Instant
+import java.util.UUID
 
 class SchedulerService(
     private val jobRepository: SchedulingJobRepository,
     private val executorLauncher: ExecutorLauncher,
+    private val executorIdGenerator: () -> String = { UUID.randomUUID().toString() },
 ) {
     fun scheduleNextQueuedJob(now: Instant): JobAssignment? {
-        val job = jobRepository.findNextQueuedJob() ?: return null
-        if (job.executorId != null) {
-            return null
+        val executorId = executorIdGenerator()
+        val job = jobRepository.claimNextQueuedJob(executorId) ?: return null
+
+        try {
+            executorLauncher.launch(executorId, job)
+        } catch (exception: Exception) {
+            jobRepository.clearExecutorAssignment(job.id)
+            throw exception
         }
 
-        val executorId = executorLauncher.launch(job)
-        jobRepository.assignExecutor(job.id, executorId)
         return null
     }
 }

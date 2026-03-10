@@ -7,7 +7,6 @@ import org.junit.jupiter.api.Test
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
-import java.util.Base64
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
@@ -60,37 +59,26 @@ class ExecutorAssignmentServiceTest {
         assertNull(assignment)
     }
 
-    @Test
-    fun `getAssignmentScript returns base64 encoded script variables`() {
-        val repository = InMemoryAssignmentJobRepository(
-            mutableListOf(assignedJob(id = "job-4", executorId = "exec-4", status = JobStatus.QUEUED, script = "echo hi\necho bye"))
-        )
-        val service = ExecutorAssignmentService(repository, clock)
-
-        val script = service.getAssignmentScript("exec-4")
-
-        assertEquals(
-            "JOB_ID=job-4\nSCRIPT_BASE64=${Base64.getEncoder().encodeToString("echo hi\necho bye".toByteArray())}\n",
-            script,
-        )
-
-        val storedJob = repository.requireJob("job-4")
-        assertEquals(JobStatus.IN_PROGRESS, storedJob.status)
-    }
 }
 
 private class InMemoryAssignmentJobRepository(
     private val jobs: MutableList<Job>,
 ) : SchedulingJobRepository {
-    override fun findNextQueuedJob(): Job? = jobs.firstOrNull { it.status == JobStatus.QUEUED && it.executorId == null }
+    override fun claimNextQueuedJob(executorId: String): Job? {
+        val job = jobs.firstOrNull { it.status == JobStatus.QUEUED && it.executorId == null } ?: return null
+        val index = jobs.indexOfFirst { it.id == job.id }
+        val updated = jobs[index].copy(executorId = executorId)
+        jobs[index] = updated
+        return updated
+    }
 
     override fun findAssignedJob(executorId: String): Job? {
         return jobs.firstOrNull { it.executorId == executorId && it.status in setOf(JobStatus.QUEUED, JobStatus.IN_PROGRESS) }
     }
 
-    override fun assignExecutor(jobId: String, executorId: String): Job {
+    override fun clearExecutorAssignment(jobId: String): Job {
         val index = jobs.indexOfFirst { it.id == jobId }
-        val updated = jobs[index].copy(executorId = executorId)
+        val updated = jobs[index].copy(executorId = null)
         jobs[index] = updated
         return updated
     }

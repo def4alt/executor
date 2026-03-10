@@ -20,6 +20,9 @@ services:
       EXECUTOR_DB_NAME: executor
       SPRING_DATASOURCE_USERNAME: executor
       SPRING_DATASOURCE_PASSWORD: executor
+      EXECUTOR_SCHEDULER_ENABLED: false
+      EXECUTOR_KUBERNETES_ENABLED: false
+      EXECUTOR_INTERNAL_AUTH_TOKEN: local-dev-token
     ports:
       - "8080:8080"
 

@@ -6,8 +6,10 @@ import org.springframework.boot.context.properties.ConfigurationProperties
 data class ExecutorProperties(
     val mode: String = "control-plane",
     val controlPlaneUrl: String = "http://executor:8080",
+    val internalAuthToken: String = "change-me",
     val scheduler: SchedulerProperties = SchedulerProperties(),
     val kubernetes: KubernetesProperties = KubernetesProperties(),
+    val runtime: ExecutorRuntimeProperties = ExecutorRuntimeProperties(),
 )
 
 data class SchedulerProperties(
@@ -16,9 +18,15 @@ data class SchedulerProperties(
 )
 
 data class KubernetesProperties(
-    val enabled: Boolean = false,
+    val enabled: Boolean = true,
     val namespace: String = "executor",
     val controlPlaneServiceUrl: String = "http://executor:8080",
-    val executorImage: String = "curlimages/curl:8.12.1",
+    val executorImage: String = "ghcr.io/def4alt/executor:latest",
     val imagePullPolicy: String = "IfNotPresent",
+)
+
+data class ExecutorRuntimeProperties(
+    val id: String = "",
+    val podName: String = "",
+    val namespace: String = "",
 )

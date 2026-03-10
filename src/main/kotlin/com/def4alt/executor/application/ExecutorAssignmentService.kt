@@ -1,9 +1,8 @@
 package com.def4alt.executor.application
 
-import org.springframework.stereotype.Service
-import java.util.Base64
 import java.time.Clock
 import java.time.Instant
+import org.springframework.stereotype.Service
 
 @Service
 class ExecutorAssignmentService(
@@ -22,13 +21,6 @@ class ExecutorAssignmentService(
             jobId = job.id,
             script = job.script,
         )
-    }
-
-    fun getAssignmentScript(executorId: String): String? {
-        val assignment = getAssignment(executorId) ?: return null
-        val scriptBase64 = Base64.getEncoder().encodeToString(assignment.script.toByteArray())
-
-        return "JOB_ID=${assignment.jobId}\nSCRIPT_BASE64=$scriptBase64\n"
     }
 }
 

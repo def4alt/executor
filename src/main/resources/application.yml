@@ -17,12 +17,17 @@ management:
 executor:
   mode: ${EXECUTOR_MODE:control-plane}
   control-plane-url: ${EXECUTOR_CONTROL_PLANE_URL:http://executor:8080}
+  internal-auth-token: ${EXECUTOR_INTERNAL_AUTH_TOKEN:change-me}
   scheduler:
     enabled: ${EXECUTOR_SCHEDULER_ENABLED:true}
     fixed-delay-ms: ${EXECUTOR_SCHEDULER_FIXED_DELAY_MS:2000}
+  runtime:
+    id: ${EXECUTOR_RUNTIME_ID:}
+    pod-name: ${EXECUTOR_RUNTIME_POD_NAME:}
+    namespace: ${EXECUTOR_RUNTIME_NAMESPACE:}
   kubernetes:
-    enabled: ${EXECUTOR_KUBERNETES_ENABLED:false}
+    enabled: ${EXECUTOR_KUBERNETES_ENABLED:true}
     namespace: ${EXECUTOR_KUBERNETES_NAMESPACE:executor}
     control-plane-service-url: ${EXECUTOR_CONTROL_PLANE_URL:http://executor:8080}
-    executor-image: ${EXECUTOR_EXECUTOR_IMAGE:curlimages/curl:8.12.1}
+    executor-image: ${EXECUTOR_EXECUTOR_IMAGE:ghcr.io/def4alt/executor:latest}
     image-pull-policy: ${EXECUTOR_EXECUTOR_IMAGE_PULL_POLICY:IfNotPresent}
