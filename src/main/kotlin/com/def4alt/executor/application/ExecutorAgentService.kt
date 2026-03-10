@@ -1,5 +1,8 @@
 package com.def4alt.executor.application
 
+import org.springframework.stereotype.Service
+
+@Service
 class ExecutorAgentService(
     private val controlPlaneClient: ExecutorControlPlaneClient,
     private val shellCommandRunner: ShellCommandRunner,
