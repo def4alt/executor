@@ -16,14 +16,14 @@ flowchart TD
     API --> Q[Scheduler]
 
     Q --> K8S[Kubernetes API in k3s]
-    K8S --> PODS[Executor pod]
+    K8S --> PODS[BusyBox executor pod]
 
-    PODS --> REG[Executor mode registers READY]
+    PODS --> REG[Register executor]
     REG --> E
 
-    REG --> ASSIGN[Fetch assigned job]
-    ASSIGN --> RUN[Run script once]
-    RUN --> RES[Send result back]
+    REG --> ASSIGN[Fetch assignment script]
+    ASSIGN --> RUN[Run script with sh]
+    RUN --> RES[Send base64 result back]
     RES --> API
 
     API --> J
@@ -36,7 +36,7 @@ flowchart TD
 - `POST /jobs` saves a job as `QUEUED`.
 - `GET /jobs/{id}` returns the job state, requested resources, timestamps, and output fields.
 - The scheduler atomically claims one queued job, creates one executor pod, and assigns that executor id to the job.
-- The pod runs the same application image in `executor` mode, registers with the control plane, fetches its assignment, runs the script once, reports the result, and exits.
+- The executor pod is a lightweight `busybox` container that registers with the control plane, fetches an assignment script, runs the job with BusyBox `sh`, reports the base64-encoded result, and exits.
 - Internal executor endpoints require `X-Executor-Token`.
 - Job results are `FINISHED` when `exitCode == 0` and `FAILED` otherwise.
 
@@ -83,7 +83,7 @@ docker compose up --build
 ```
 
 That local compose setup is API-only: it disables the scheduler and Kubernetes launcher so the service can start without a cluster.
-Real remote execution requires Kubernetes plus a valid executor image and internal executor token.
+Real remote execution requires Kubernetes plus a valid BusyBox executor image and internal executor token.
 
 ## Layout
 
