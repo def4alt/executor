@@ -53,7 +53,7 @@ build_repo_command() {
   inner="export PATH=\"${BUN_INSTALL}/bin:\${PATH}\" && cd '${REPO_DIR}' && exec ${PI_CMD} ${PI_ARGS} 2>&1 | tee -a '${PI_LOG_FILE}'"
 
   if [[ -f "${REPO_DIR}/flake.nix" ]]; then
-    printf "cd '%s' && exec sudo -i nix develop --accept-flake-config --no-pure-eval -c bash -lc %q" \
+    printf "cd '%s' && exec sudo nix develop --accept-flake-config --no-pure-eval -c bash -lc %q" \
       "${REPO_DIR}" "${inner}"
   else
     printf "cd '%s' && exec bash -lc %q" \
