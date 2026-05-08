@@ -57,6 +57,12 @@ spec:
         - name: workspace
           persistentVolumeClaim:
             claimName: {{ .Values.repo.existingPvc }}
+        {{- else if not (empty .Values.repo.url) }}
+          # volumeClaimTemplates provides the workspace volume
+        {{- else }}
+        - name: workspace
+          persistentVolumeClaim:
+            claimName: {{ include "executor.fullname" . }}-workspace
         {{- end }}
         {{- with .Values.extraVolumes }}
         {{- toYaml . | nindent 8 }}

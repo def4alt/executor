@@ -1,4 +1,4 @@
-{{- if not .Values.repo.existingPvc }}
+{{- if and (not .Values.repo.existingPvc) (empty .Values.repo.url) }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
