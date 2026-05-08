@@ -1,7 +1,7 @@
-FROM debian:bookworm-slim
+FROM debian:trixie-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates curl git jq nodejs npm openssh-client procps python3 \
+    ca-certificates curl git jq nodejs openssh-client procps python3 \
     rsync sudo tmux unzip xz-utils zip \
   && rm -rf /var/lib/apt/lists/*
 
