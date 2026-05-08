@@ -43,4 +43,6 @@ exec ttyd \
   --port "${TTYD_PORT}" \
   --interface "${TTYD_INTERFACE}" \
   --writable \
+  --client-option copyOnSelect=true \
+  --client-option fontSize=14 \
   tmux attach -t "${SESSION_NAME}"
