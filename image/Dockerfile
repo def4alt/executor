@@ -1,33 +1,40 @@
-FROM nixos/nix:latest
+FROM debian:bookworm-slim
 
-# Enable flakes and nix-command, then install extra packages
-# (bash and git-minimal are already in the base image)
-RUN mkdir -p /etc/nix && echo 'experimental-features = nix-command flakes' > /etc/nix/nix.conf
-RUN nix profile install nixpkgs#cacert nixpkgs#curl \
-    nixpkgs#jq nixpkgs#openssh nixpkgs#procps nixpkgs#python3 \
-    nixpkgs#rsync nixpkgs#sudo nixpkgs#tmux nixpkgs#unzip nixpkgs#zip \
-    nixpkgs#xz nixpkgs#bun \
-  && nix store gc
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates curl git jq openssh-client procps python3 \
+    rsync sudo tmux unzip xz-utils zip \
+  && rm -rf /var/lib/apt/lists/*
+
+# Install Nix via Determinate Systems installer (Docker-optimized)
+# https://github.com/DeterminateSystems/nix-installer
+RUN curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | \
+    sh -s -- install linux --extra-conf "sandbox = false" --init none --no-confirm
 
 RUN groupadd --gid 1000 workspace \
   && useradd --uid 1000 --gid 1000 --create-home --shell /bin/bash workspace \
   && usermod -aG sudo workspace \
-  && echo 'workspace ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/workspace \
-  && chmod 0440 /etc/sudoers.d/workspace
+  && echo 'workspace ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/workspace
 
-RUN mkdir -p /etc/nix \
-  && echo 'sandbox = relaxed' > /etc/nix/nix.conf \
-  && echo 'extra-nix-path = nixpkgs=/nix/var/nix/profiles/per-user/root/channels/nixpkgs' >> /etc/nix/nix.conf
+# Install bun system-wide (for Pi agent)
+RUN curl -fsSL https://bun.sh/install | bash \
+  && cp /root/.bun/bin/bun /usr/local/bin/bun \
+  && rm -rf /root/.bun
 
-USER workspace
-WORKDIR /workspace
+ENV NIX_CONFIG="experimental-features = nix-command flakes"
+ENV PATH="/nix/var/nix/profiles/default/bin:/usr/local/bin:/usr/bin:/bin"
 
 COPY --chown=workspace:workspace image/install.sh /home/workspace/bin/install.sh
 COPY --chown=workspace:workspace image/bootstrap.sh /home/workspace/bin/bootstrap.sh
 COPY --chown=workspace:workspace image/entrypoint.sh /home/workspace/bin/entrypoint.sh
+RUN chmod +x /home/workspace/bin/*.sh
 
-RUN chmod +x ~/bin/install.sh ~/bin/bootstrap.sh ~/bin/entrypoint.sh && ~/bin/install.sh
+USER workspace
+WORKDIR /workspace
+
+ENV PATH="/nix/var/nix/profiles/default/bin:/usr/local/bin:/usr/bin:/bin"
+ENV NIX_CONFIG="experimental-features = nix-command flakes"
+
+RUN /home/workspace/bin/install.sh
 
 EXPOSE 7681
-
 ENTRYPOINT ["/home/workspace/bin/entrypoint.sh"]
