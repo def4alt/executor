@@ -13,8 +13,7 @@ RUN curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/
 RUN groupadd --gid 1000 workspace \
   && useradd --uid 1000 --gid 1000 --create-home --shell /bin/bash workspace \
   && usermod -aG sudo workspace \
-  && echo 'workspace ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/workspace \
-  && echo 'Defaults !audit' > /etc/sudoers.d/audit
+  && echo 'workspace ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/workspace
 
 # Install ttyd (browser terminal) from GitHub releases
 RUN curl -fsSL https://github.com/tsl0922/ttyd/releases/download/1.7.7/ttyd.x86_64 -o /usr/local/bin/ttyd \
