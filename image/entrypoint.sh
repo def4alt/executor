@@ -23,6 +23,16 @@ experimental-features = nix-command flakes
 accept-flake-config = true
 EOF
 
+# Ensure bun/pi is in PATH for all shell types (tmux, ssh, kubectl exec, etc.)
+cat >> "${HOME}/.bashrc" <<'EOF'
+export BUN_INSTALL="${BUN_INSTALL:-$HOME/.bun}"
+export PATH="${BUN_INSTALL}/bin:$PATH"
+EOF
+cat >> "${HOME}/.profile" <<'EOF'
+export BUN_INSTALL="${BUN_INSTALL:-$HOME/.bun}"
+export PATH="${BUN_INSTALL}/bin:$PATH"
+EOF
+
 if [[ -x /usr/local/bin/bootstrap.sh ]]; then
   /usr/local/bin/bootstrap.sh
 else
