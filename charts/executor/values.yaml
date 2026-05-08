@@ -138,11 +138,14 @@ podSecurityContext:
 
 # -- Container-level security context
 containerSecurityContext:
-  # sudo requires privilege escalation for nix develop
+  # sudo requires privilege escalation and SETUID/SETGID capabilities
   allowPrivilegeEscalation: true
   capabilities:
     drop:
       - ALL
+    add:
+      - SETUID
+      - SETGID
   readOnlyRootFilesystem: false
   runAsNonRoot: true
   runAsUser: 1000
