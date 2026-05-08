@@ -15,6 +15,10 @@ RUN groupadd --gid 1000 workspace \
   && usermod -aG sudo workspace \
   && echo 'workspace ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/workspace
 
+# Install ttyd (browser terminal) from GitHub releases
+RUN curl -fsSL https://github.com/tsl0922/ttyd/releases/download/1.7.7/ttyd.x86_64 -o /usr/local/bin/ttyd \
+  && chmod +x /usr/local/bin/ttyd
+
 # Install bun system-wide (for Pi agent)
 RUN curl -fsSL https://bun.sh/install | bash \
   && cp /root/.bun/bin/bun /usr/local/bin/bun \

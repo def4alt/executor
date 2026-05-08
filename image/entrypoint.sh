@@ -23,10 +23,10 @@ experimental-features = nix-command flakes
 accept-flake-config = true
 EOF
 
-if [[ -x /usr/local/bin/bootstrap-workspace.sh ]]; then
-  /usr/local/bin/bootstrap-workspace.sh
+if [[ -x /usr/local/bin/bootstrap.sh ]]; then
+  /usr/local/bin/bootstrap.sh
 else
-  /home/workspace/bin/bootstrap-workspace.sh
+  /home/workspace/bin/bootstrap.sh
 fi
 
 exec ttyd \
