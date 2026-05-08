@@ -1,11 +1,13 @@
 FROM nixos/nix:latest
 
-RUN nix-env -iA nixpkgs.bash nixpkgs.cacert nixpkgs.curl nixpkgs.git \
-    nixpkgs.jq nixpkgs.openssh nixpkgs.procps nixpkgs.python3 \
-    nixpkgs.rsync nixpkgs.sudo nixpkgs.tmux nixpkgs.unzip nixpkgs.zip \
-    nixpkgs.xz nixpkgs.bun \
-  && nix-collect-garbage --delete-old \
-  && nix-store --optimise
+# Enable flakes and nix-command for nix profile, then install packages
+RUN mkdir -p /etc/nix && echo 'experimental-features = nix-command flakes' > /etc/nix/nix.conf
+RUN nix profile install nixpkgs#bash nixpkgs#cacert nixpkgs#curl \
+    nixpkgs#jq nixpkgs#openssh nixpkgs#procps nixpkgs#python3 \
+    nixpkgs#rsync nixpkgs#sudo nixpkgs#tmux nixpkgs#unzip nixpkgs#zip \
+    nixpkgs#xz nixpkgs#bun \
+  && nix profile list \
+  && nix store gc
 
 RUN groupadd --gid 1000 workspace \
   && useradd --uid 1000 --gid 1000 --create-home --shell /bin/bash workspace \
