@@ -3,7 +3,7 @@ FROM nixos/nix:latest
 RUN nix-env -iA nixpkgs.bash nixpkgs.cacert nixpkgs.curl nixpkgs.git \
     nixpkgs.jq nixpkgs.openssh nixpkgs.procps nixpkgs.python3 \
     nixpkgs.rsync nixpkgs.sudo nixpkgs.tmux nixpkgs.unzip nixpkgs.zip \
-    nixpkgs.xz nixpkgs.ca-certificates nixpkgs.bun \
+    nixpkgs.xz nixpkgs.bun \
   && nix-collect-garbage --delete-old \
   && nix-store --optimise
 
