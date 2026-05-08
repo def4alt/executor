@@ -5,7 +5,7 @@ image:
   # -- Image registry
   registry: ghcr.io
   # -- Image repository
-  repository: def4alt/executor
+  repository: def4alt/pi-executor
   # -- Image tag (overrides appVersion from Chart.yaml)
   tag: ""
   # -- Pull policy
