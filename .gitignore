@@ -1,0 +1,22 @@
+# direnv
+.direnv/
+
+# macOS
+.DS_Store
+
+# Nix
+result
+result-*
+
+# Editor
+*.swp
+*.swo
+*~
+
+# Secrets
+*.sops.yaml
+*.sops
+
+# Temp
+tmp/
+temp/
