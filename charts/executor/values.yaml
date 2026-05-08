@@ -138,7 +138,8 @@ podSecurityContext:
 
 # -- Container-level security context
 containerSecurityContext:
-  allowPrivilegeEscalation: false
+  # sudo requires privilege escalation for nix develop
+  allowPrivilegeEscalation: true
   capabilities:
     drop:
       - ALL
