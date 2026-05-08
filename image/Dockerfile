@@ -1,12 +1,12 @@
 FROM nixos/nix:latest
 
-# Enable flakes and nix-command for nix profile, then install packages
+# Enable flakes and nix-command, then install extra packages
+# (bash and git-minimal are already in the base image)
 RUN mkdir -p /etc/nix && echo 'experimental-features = nix-command flakes' > /etc/nix/nix.conf
-RUN nix profile install nixpkgs#bash nixpkgs#cacert nixpkgs#curl \
+RUN nix profile install nixpkgs#cacert nixpkgs#curl \
     nixpkgs#jq nixpkgs#openssh nixpkgs#procps nixpkgs#python3 \
     nixpkgs#rsync nixpkgs#sudo nixpkgs#tmux nixpkgs#unzip nixpkgs#zip \
     nixpkgs#xz nixpkgs#bun \
-  && nix profile list \
   && nix store gc
 
 RUN groupadd --gid 1000 workspace \
