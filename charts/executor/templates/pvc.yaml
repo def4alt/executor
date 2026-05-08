@@ -1,0 +1,20 @@
+{{- if not .Values.repo.existingPvc }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "executor.fullname" . }}-workspace
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "executor.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/resource-policy": keep
+spec:
+  accessModes:
+    {{- toYaml .Values.workspace.accessModes | nindent 4 }}
+  resources:
+    requests:
+      storage: {{ .Values.workspace.size }}
+  {{- if .Values.workspace.storageClass }}
+  storageClassName: {{ .Values.workspace.storageClass | quote }}
+  {{- end }}
+{{- end }}

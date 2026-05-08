@@ -1,0 +1,152 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "executor.fullname" . }}
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "executor.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  serviceName: {{ include "executor.fullname" . }}
+  podManagementPolicy: OrderedReady
+  updateStrategy:
+    {{- toYaml .Values.updateStrategy | nindent 4 }}
+  selector:
+    matchLabels:
+      {{- include "executor.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "executor.labels" . | nindent 8 }}
+    spec:
+      {{- with .Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "executor.serviceAccountName" . }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      terminationGracePeriodSeconds: 30
+      volumes:
+        {{- if or .Values.secrets.sshPrivateKey .Values.ssh.existingSecret .Values.secrets.gitToken }}
+        - name: git-secrets
+          secret:
+            secretName: {{ .Values.ssh.existingSecret | default (printf "%s-git" (include "executor.fullname" .)) }}
+            defaultMode: 0600
+        {{- end }}
+        {{- if .Values.repo.existingPvc }}
+        - name: workspace
+          persistentVolumeClaim:
+            claimName: {{ .Values.repo.existingPvc }}
+        {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      containers:
+        - name: {{ .Values.containerName }}
+          image: {{ include "executor.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.ttyd.port }}
+              name: ttyd
+              protocol: TCP
+          env:
+            - name: REPO_URL
+              value: {{ .Values.repo.url | quote }}
+            - name: REPO_REF
+              value: {{ .Values.repo.ref | quote }}
+            - name: SESSION_NAME
+              value: {{ .Values.tmux.sessionName | quote }}
+            - name: PI_CMD
+              value: {{ .Values.pi.cmd | quote }}
+            - name: PI_ARGS
+              value: {{ .Values.pi.args | quote }}
+            - name: PI_LOG_FILE
+              value: {{ .Values.pi.logFile | quote }}
+            - name: TTYD_PORT
+              value: {{ .Values.ttyd.port | quote }}
+            - name: TTYD_INTERFACE
+              value: {{ .Values.ttyd.interface | quote }}
+            {{- if .Values.secrets.gitToken }}
+            - name: GIT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "executor.fullname" . }}-git
+                  key: git-token
+            {{- end }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.containerSecurityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: workspace
+              mountPath: {{ .Values.workspace.mountPath }}
+            {{- if or .Values.secrets.sshPrivateKey .Values.ssh.existingSecret .Values.secrets.gitToken }}
+            - name: git-secrets
+              mountPath: {{ .Values.ssh.mountPath }}
+              readOnly: true
+            {{- end }}
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- if .Values.probes.liveness.enabled }}
+          livenessProbe:
+            tcpSocket:
+              port: ttyd
+            initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
+            successThreshold: {{ .Values.probes.liveness.successThreshold }}
+          {{- end }}
+          {{- if .Values.probes.readiness.enabled }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.ttyd.probePath }}
+              port: ttyd
+            initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
+            successThreshold: {{ .Values.probes.readiness.successThreshold }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+  {{- if and (not .Values.repo.existingPvc) (not (empty .Values.repo.url)) }}
+  volumeClaimTemplates:
+    - metadata:
+        name: workspace
+        labels:
+          {{- include "executor.labels" . | nindent 10 }}
+      spec:
+        accessModes:
+          {{- toYaml .Values.workspace.accessModes | nindent 10 }}
+        resources:
+          requests:
+            storage: {{ .Values.workspace.size }}
+        {{- if .Values.workspace.storageClass }}
+        storageClassName: {{ .Values.workspace.storageClass | quote }}
+        {{- end }}
+  {{- end }}

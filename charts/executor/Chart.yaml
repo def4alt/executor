@@ -1,0 +1,15 @@
+apiVersion: v2
+name: executor
+description: Workspace executor running Pi inside tmux with ttyd browser access
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+maintainers:
+  - name: Andrii Olkhovych
+keywords:
+  - pi
+  - tmux
+  - ttyd
+  - workspace
+  - nix
+  - devenv
