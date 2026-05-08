@@ -20,12 +20,11 @@ RUN mkdir -p /etc/nix \
 USER workspace
 WORKDIR /workspace
 
-COPY --chown=workspace:workspace coordinator/install.sh /home/workspace/bin/install.sh
-COPY --chown=workspace:workspace coordinator/bootstrap.sh /home/workspace/bin/bootstrap.sh
-COPY --chown=workspace:workspace coordinator/entrypoint.sh /home/workspace/bin/entrypoint.sh
+COPY --chown=workspace:workspace image/install.sh /home/workspace/bin/install.sh
+COPY --chown=workspace:workspace image/bootstrap.sh /home/workspace/bin/bootstrap.sh
+COPY --chown=workspace:workspace image/entrypoint.sh /home/workspace/bin/entrypoint.sh
 
-RUN chmod +x ~/bin/install.sh ~/bin/bootstrap.sh ~/bin/entrypoint.sh &&
-~/bin/install.sh
+RUN chmod +x ~/bin/install.sh ~/bin/bootstrap.sh ~/bin/entrypoint.sh && ~/bin/install.sh
 
 EXPOSE 7681
 
