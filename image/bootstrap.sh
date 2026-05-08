@@ -48,8 +48,9 @@ clone_or_update_repo() {
 }
 
 build_repo_command() {
+  local pi_path="${BUN_INSTALL}/bin/pi"
   local inner
-  inner="cd '${REPO_DIR}' && exec ${PI_CMD} ${PI_ARGS} 2>&1 | tee -a '${PI_LOG_FILE}'"
+  inner="export PATH=\"${BUN_INSTALL}/bin:\${PATH}\" && cd '${REPO_DIR}' && exec ${PI_CMD} ${PI_ARGS} 2>&1 | tee -a '${PI_LOG_FILE}'"
 
   if [[ -f "${REPO_DIR}/flake.nix" ]]; then
     printf "cd '%s' && exec sudo -i nix develop --accept-flake-config --no-pure-eval -c bash -lc %q" \
